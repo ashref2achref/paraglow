@@ -77,16 +77,26 @@ export function checkAdminAuth(request: NextRequest | Request) {
       return false
     }
 
-    // 4. Supabase token cookies can be stored as JSON arrays or objects
+    // 4. Supabase token cookies can be stored as JSON arrays or objects, possibly base64 encoded with "base64-" prefix
     let accessToken = ''
+    let parsedTokenValue = tokenValue
+    if (tokenValue.startsWith('base64-')) {
+      try {
+        const base64Str = tokenValue.substring(7)
+        parsedTokenValue = Buffer.from(base64Str, 'base64').toString('utf-8')
+      } catch (err) {
+        console.warn('[checkAdminAuth] Failed to decode base64 prefixed tokenValue:', err)
+      }
+    }
+
     try {
-      const parsed = JSON.parse(tokenValue)
+      const parsed = JSON.parse(parsedTokenValue)
       accessToken = Array.isArray(parsed)
         ? parsed[0]
         : (typeof parsed === 'object' && parsed !== null ? parsed.access_token : parsed)
     } catch {
       // Fallback if it is stored as a raw string
-      accessToken = tokenValue
+      accessToken = parsedTokenValue
     }
 
     if (!accessToken) {
