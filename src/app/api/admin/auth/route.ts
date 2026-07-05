@@ -1,47 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import { getAdminCredentials } from '@/lib/adminCredentials'
-import { clearAdminSessionCookie, createAdminSessionToken, setAdminSessionCookie } from '@/lib/adminSession'
-import { getAdminSessionSecret } from '@/lib/adminSessionShared'
+import { NextResponse } from 'next/server'
+import { createClient } from '@/utils/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const body = await request.json()
     const { email, password } = body
-    const credentials = await getAdminCredentials()
+    const supabase = await createClient()
 
-    if (!credentials.passwordHash) {
-      return NextResponse.json({
-        error: 'ADMIN_PASSWORD_HASH doit etre configure avant toute connexion admin.',
-      }, { status: 503 })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 401 })
     }
 
-    if (!getAdminSessionSecret()) {
-      return NextResponse.json({
-        error: 'SESSION_SECRET doit etre configure avec au moins 32 caracteres.',
-      }, { status: 503 })
+    const role = data.user.user_metadata?.role || data.user.app_metadata?.role
+    if (role !== 'ADMIN') {
+      await supabase.auth.signOut()
+      return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
     }
 
-    const isValid =
-      email === credentials.email &&
-      bcrypt.compareSync(String(password || ''), credentials.passwordHash)
-
-    if (!isValid) {
-      return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 })
-    }
-
-    const response = NextResponse.json({ success: true, message: 'Connexion reussie' })
-    setAdminSessionCookie(response, createAdminSessionToken())
-    return response
+    return NextResponse.json({ success: true, message: 'Connexion réussie' })
   } catch {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
 export async function DELETE() {
-  const response = NextResponse.json({ success: true, message: 'Deconnexion reussie' })
-  clearAdminSessionCookie(response)
-  return response
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  return NextResponse.json({ success: true, message: 'Déconnexion réussie' })
 }

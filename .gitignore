@@ -44,6 +44,8 @@ next-env.d.ts
 
 # local sqlite database + backups (data is not source; backed up via cp)
 /dev.db
+/*.db
+*.db
 /dev.db.backup*
 dev.db-shm
 dev.db-wal
