@@ -1,0 +1,419 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  phone         String?
+  passwordHash  String?
+  role          Role           @default(CUSTOMER)
+  loyaltyPoints Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  addresses     Address[]
+  orders        Order[]
+  reviews       Review[]
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  userId      String
+  label       String   @default("Domicile")
+  firstName   String
+  lastName    String
+  phone       String
+  address     String
+  city        String
+  governorate String
+  postalCode  String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[]
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  nameAr      String?
+  nameEn      String?
+  slug        String     @unique
+  description String?
+  image       String?
+  order       Int        @default(0)
+  isActive    Boolean    @default(true)
+  parentId    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  parent      Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children    Category[] @relation("SubCategories")
+  products    Product[]
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  logo        String?
+  description String?
+  isActive    Boolean   @default(true)
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id              String            @id @default(cuid())
+  code            String            @unique
+  barcode         String?
+  slug            String            @unique
+  name            String
+  nameAr          String?
+  nameEn          String?
+  description     String?
+  descriptionAr   String?
+  descriptionEn   String?
+  categoryId      String?
+  brandId         String?
+  purchasePriceHT Float             @default(0)
+  margin          Float             @default(0)
+  tva             Float             @default(19)
+  sellingPriceTTC Float             @default(0)
+  sellingPriceHT  Float             @default(0)
+  publicPrice     Float?
+  stock           Int               @default(0)
+  stockMin        Int               @default(5)
+  images          String?
+  isActive        Boolean           @default(true)
+  isFeatured      Boolean           @default(false)
+  isNew           Boolean           @default(false)
+  isOnSale        Boolean           @default(false)
+  isBestSeller    Boolean           @default(false)
+  loyaltyPoints   Int               @default(0)
+  weight          Float?
+  dimensions      String?
+  imageUrl        String?
+  remiseType      RemiseType        @default(AUCUNE)
+  remiseValeur    Float?
+  remiseVisible   Boolean           @default(false)
+  supprime        Boolean           @default(false)
+  supprimeLe      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  importBatchId   String?
+  importBatch     ImportBatch?      @relation(fields: [importBatchId], references: [id])
+  orderItems      OrderItem[]
+  brand           Brand?            @relation(fields: [brandId], references: [id])
+  category        Category?         @relation(fields: [categoryId], references: [id])
+  reviews         Review[]
+
+  @@index([supprime, isActive])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([supprime, isActive, isFeatured])
+}
+
+model Order {
+  id             String          @id @default(cuid())
+  orderNumber    String          @unique
+  userId         String?
+  addressId      String?
+  guestEmail     String?
+  guestName      String?
+  guestPhone     String?
+  wilaya         String?
+  status         OrderStatus     @default(PENDING)
+  paymentMethod  PaymentMethod   @default(CASH_ON_DELIVERY)
+  paymentStatus  PaymentStatus   @default(PENDING)
+  deliveryMethod DeliveryMethod  @default(STANDARD)
+  subtotal       Float
+  deliveryFee    Float           @default(0)
+  discount       Float           @default(0)
+  total          Float
+  promoCode      String?
+  promoDiscount  Float           @default(0)
+  promoCodeId    String?
+  promoCodeObj   PromoCode?      @relation(fields: [promoCodeId], references: [id])
+  notes          String?
+  trackingNumber String?
+  estimatedDate  DateTime?
+  source         String          @default("SITE") // "SITE" or "INTERNE"
+  confirmee      Boolean         @default(false)
+  supprime       Boolean         @default(false)
+  supprimeLe     DateTime?
+  clientId       String?
+  client         Client?         @relation(fields: [clientId], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  address        Address?        @relation(fields: [addressId], references: [id])
+  user           User?           @relation(fields: [userId], references: [id])
+  items          OrderItem[]
+  tracking       OrderTracking[]
+  logs           OrderLog[]
+
+  @@index([supprime, status])
+  @@index([supprime, status, createdAt])
+  @@index([supprime, source, status, confirmee, createdAt])
+  @@index([clientId])
+}
+
+model Client {
+  id         String    @id @default(cuid())
+  nom        String
+  prenom     String
+  phone      String    @unique
+  email      String?
+  adresse    String?
+  wilaya     String?
+  notes      String?
+  partnerId  String?
+  partner    Partner?  @relation(fields: [partnerId], references: [id])
+  supprime   Boolean   @default(false)
+  supprimeLe DateTime?
+  createdAt  DateTime  @default(now())
+  orders     Order[]
+  logs       ClientLog[]
+
+  @@index([supprime])
+  @@index([createdAt])
+}
+
+model ClientLog {
+  id         String   @id @default(cuid())
+  action     String   // "CREATION", "MODIFICATION", "SUPPRESSION", "RESTORATION"
+  details    String
+  changes    String?  // JSON string representing { field: { before, after } }
+  clientId   String?
+  clientName String?
+  createdAt  DateTime @default(now())
+  client     Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+}
+
+model Partner {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  type          String
+  discountType  String    // "PERCENTAGE" or "FIXED"
+  discountValue Float
+  contactName   String?
+  contactPhone  String?
+  contactEmail  String?
+  startDate     DateTime?
+  endDate       DateTime?
+  notes         String?
+  documentUrl   String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  clients       Client[]
+}
+
+model OrderLog {
+  id        String   @id @default(cuid())
+  orderId   String?
+  action    String   // "CREATION", "STATUT", "MODIFICATION", "ANNULATION", "SUPPRESSION", "RESTORATION"
+  details   String
+  changes   String?  // JSON string representing { field: { before, after } }
+  createdAt DateTime @default(now())
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  productName String
+  productCode String
+  quantity    Int
+  unitPrice   Float
+  total       Float
+  image       String?
+  product     Product @relation(fields: [productId], references: [id])
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderTracking {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  message   String?
+  createdAt DateTime    @default(now())
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model PromoCode {
+  id                   String    @id @default(cuid())
+  code                 String    @unique
+  type                 String    @default("PERCENTAGE")
+  value                Float
+  minOrder             Float?
+  maxUses              Int?
+  maxUsesPerClient     Int?
+  applicableCategories String?   // JSON or comma-separated category IDs
+  applicableProducts   String?   // JSON or comma-separated product IDs
+  usedCount            Int       @default(0)
+  startDate            DateTime?
+  endDate              DateTime?
+  isActive             Boolean   @default(true)
+  supprime             Boolean   @default(false)
+  supprimeLe           DateTime?
+  createdAt            DateTime  @default(now())
+  orders               Order[]
+  logs                 PromoLog[]
+}
+
+model PromoLog {
+  id        String   @id @default(cuid())
+  action    String   // "CREATION", "MODIFICATION", "SUPPRESSION", "RESTORATION"
+  details   String
+  changes   String?  // JSON string representing { field: { before, after } }
+  promoId   String?
+  promoCode String?
+  createdAt DateTime @default(now())
+  promo     PromoCode? @relation(fields: [promoId], references: [id], onDelete: SetNull)
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  userId     String
+  productId  String
+  rating     Int
+  comment    String?
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, productId])
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+model Counter {
+  id        String   @id
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model SiteMedia {
+  id         String    @id @default(cuid())
+  slotKey    String
+  type       String    @default("IMAGE")
+  url        String
+  alt        String?
+  width      Int?
+  height     Int?
+  supprime   Boolean   @default(false)
+  supprimeLe DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([slotKey, supprime])
+}
+
+model SiteMediaLog {
+  id        String   @id @default(cuid())
+  slotKey   String
+  action    String   // "UPLOAD", "REPLACE", "DELETE", "RESTORE", "PURGE"
+  details   String
+  changes   String?  // JSON string representing { before: {...}, after: {...} }
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  nom       String
+  email     String
+  telephone String?
+  sujet     String?
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model ProductLog {
+  id          String   @id @default(cuid())
+  action      String   // "CREATION", "MODIFICATION", "SUPPRESSION", "RESTORATION", "IMPORT", "EXPORT"
+  details     String
+  changes     String?  // JSON string representing { field: { before, after } }
+  productId   String?
+  productName String?
+  createdAt   DateTime @default(now())
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  EMPLOYEE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH_ON_DELIVERY
+  BANK_CARD
+  EDINAR
+  INSTALLMENT
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum DeliveryMethod {
+  STANDARD
+  EXPRESS
+  PICKUP
+}
+
+enum RemiseType {
+  AUCUNE
+  POURCENTAGE
+  PRIX_FIXE
+}
+
+model ImportBatch {
+  id                   String    @id @default(cuid())
+  filename             String
+  status               String    @default("COMPLETED") // "PENDING", "PROCESSING", "COMPLETED", "FAILED"
+  totalRows            Int       @default(0)
+  processedRows        Int       @default(0)
+  ignoredCount         Int       @default(0)
+  errorCount           Int       @default(0)
+  errorsJson           String?   // JSON array of the first N error strings (truncated)
+  errorMessage         String?   // top-level failure reason when status = "FAILED"
+  productsCreatedCount Int       @default(0)
+  productsUpdatedCount Int       @default(0)
+  startedAt            DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  products             Product[]
+}

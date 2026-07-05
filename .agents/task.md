@@ -1,0 +1,22 @@
+- [x] Chantier A: i18n & RTL
+  - [x] Complete i18n audit & translate hardcoded French texts in messages/ (`fr.json`, `en.json`, `ar.json`)
+  - [x] Update `globals.css` with headings Noto Naskh Arabic rule
+  - [x] Implement dir="rtl" visual adjustments in components
+  - [x] Verify i18n switching and cookie persistence
+  - [x] Run `npm run build` to verify Chantier A
+- [x] Chantier B: Live Search
+  - [x] Extend products API `route.ts` search queries (brand, category, translations)
+  - [x] Replace `backdrop-blur-sm` overlay style with transparent cream mask
+  - [x] Implement debounced live search in `Header.tsx` (suggestions, loading, results list, hearts, empty state)
+  - [x] Connect "Voir tous les résultats" to `/catalogue?search=...`
+  - [x] Add keyboard navigation controls (Arrows, Enter, Escape)
+  - [x] Add `recherche` and `q` search query param aliases in `CatalogueClient.tsx`
+  - [x] Run `npm run build` to verify Chantier B
+- [x] Chantier C: Cart & Wishlist Pages
+  - [x] Update Header links for Heart and Bag icons
+  - [x] Create `/panier` Page wrapper and Client interactive `CartClient.tsx`
+  - [x] Create `/favoris` Page wrapper and Client interactive `WishlistClient.tsx`
+  - [x] Implement hydration guards & store synchronization in both components
+  - [x] Add toast notices for product additions, quantity modifications, and removals
+  - [x] Verify empty states & layout styling
+  - [x] Run final production `npm run build`

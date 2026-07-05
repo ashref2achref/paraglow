@@ -1,0 +1,622 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "catalogue": "Produits",
+    "search": "Recherche",
+    "wishlist": "Favoris",
+    "cart": "Panier",
+    "account": "Compte",
+    "categories": "Catégories",
+    "about": "À propos",
+    "contact": "Contact"
+  },
+  "header": {
+    "searchPlaceholder": "Rechercher un produit...",
+    "searchMobilePlaceholder": "Rechercher...",
+    "closeSearch": "Fermer la recherche",
+    "closeMenu": "Fermer le menu",
+    "openMenu": "Menu",
+    "selectLanguage": "Sélectionner la langue"
+  },
+  "footer": {
+    "tagline": "Votre espace santé, beauté et bien-être, avec une sélection de produits authentiques et des conseils personnalisés.",
+    "linksTitle": "Liens rapides",
+    "links": {
+      "home": "Accueil",
+      "catalogue": "Produits",
+      "about": "À propos",
+      "contact": "Contact",
+      "onlineOrder": "Commande en ligne",
+      "trackOrder": "Suivre ma commande"
+    },
+    "categoriesTitle": "Nos univers",
+    "categories": {
+      "beaute": "Beauté & soin visage",
+      "sante": "Santé & bien-être",
+      "bebe": "Bébé & maman",
+      "hygiene": "Hygiène & protection",
+      "solaire": "Solaire",
+      "complements": "Compléments alimentaires"
+    },
+    "whatsappLabel": "WhatsApp",
+    "phoneLabel": "Téléphone",
+    "emailLabel": "Email",
+    "deliveryText": "Livraison {mode}",
+    "copyright": "Copyright © 2026 ParaGlow Parapharmacie. Tous droits réservés.",
+    "bottomLinks": {
+      "order": "Commande en ligne",
+      "advice": "Conseil personnalisé",
+      "delivery": "Livraison en Tunisie"
+    }
+  },
+  "home": {
+    "hero": {
+      "title": "Votre beauté, votre santé, votre glow.",
+      "titleHighlight": "notre passion",
+      "subtitle": "Découvrez une sélection premium de soins dermo-cosmétiques, produits naturels et essentiels bien-être, choisis avec soin par ParaGlow.",
+      "cta": "Découvrir la collection",
+      "badge1": "Formules naturelles",
+      "badge2": "Produits certifiés",
+      "badge3": "Livraison rapide",
+      "secondaryCta": "Demander conseil",
+      "titlePart1": "Votre parapharmacie",
+      "titlePart2": "en ligne,",
+      "titlePart3": "élégante et fiable",
+      "p": "Soins, santé, beauté et bien-être sélectionnés avec attention, livrés partout en Tunisie."
+    },
+    "announcement": "Livraison gratuite à partir de 200 DT | Service client disponible",
+    "categories": {
+      "title": "Nos catégories",
+      "viewAll": "Voir tout"
+    },
+    "featured": {
+      "title": "Sélection du moment",
+      "subtitle": "Nos produits coups de cœur"
+    },
+    "selection": {
+      "titlePart1": "La sélection",
+      "titlePart2": "ParaGlow",
+      "titlePart3": "du moment",
+      "p": "Des essentiels santé, beauté et bien-être sélectionnés avec soin pour votre routine quotidienne.",
+      "brandBadgeTitle": "Plus de 200 marques",
+      "brandBadgeSub": "de confiance",
+      "emptyTitle": "Notre sélection exclusive arrive bientôt.",
+      "emptyText": "Les produits seront visibles dès leur configuration dans l'administration."
+    },
+    "univers": {
+      "tag": "NOS UNIVERS",
+      "title": "Nos univers",
+      "titleHighlight": "santé & beauté",
+      "subtitle": "Découvrez toutes nos catégories de produits pour prendre soin de vous et de vos proches.",
+      "explore": "Explorer",
+      "viewAllCategories": "Voir toutes nos catégories",
+      "categories": {
+        "beaute": {
+          "title": "Beauté & soin visage",
+          "desc": "Crèmes, sérums, nettoyants et routines beauté."
+        },
+        "sante": {
+          "title": "Santé & bien-être",
+          "desc": "Des essentiels pour votre confort quotidien."
+        },
+        "bebe": {
+          "title": "Bébé & maman",
+          "desc": "Soins doux, hygiène bébé et produits maternité."
+        },
+        "hygiene": {
+          "title": "Hygiène & protection",
+          "desc": "Hygiène intime, corporelle et produits de soin."
+        },
+        "solaire": {
+          "title": "Solaire",
+          "desc": "Protection SPF, après-soleil et soins d'été."
+        },
+        "complements": {
+          "title": "Compléments alimentaires",
+          "desc": "Vitamines, énergie, équilibre et immunité."
+        }
+      }
+    },
+    "reassurance": {
+      "authTitle": "Produits authentiques",
+      "authDesc": "100% origine & qualité garantie",
+      "deliveryTitle": "Livraison rapide",
+      "deliveryDesc": "Partout en Tunisie",
+      "adviceTitle": "Conseils personnalisés",
+      "adviceDesc": "Notre équipe à votre écoute",
+      "selectTitle": "Sélection rigoureuse",
+      "selectDesc": "Pour votre bien-être au quotidien"
+    },
+    "brands": {
+      "title": "Nos marques",
+      "subtitle": "Les meilleures marques de parapharmacie"
+    },
+    "story": {
+      "title": "Notre histoire",
+      "subtitle": "Depuis 2020, votre bien-être est notre mission",
+      "stats": {
+        "products": "Références",
+        "clients": "Clients",
+        "years": "ans d'Expertise"
+      },
+      "cta": "Découvrir notre histoire"
+    },
+    "trust": {
+      "delivery": "Livraison rapide",
+      "deliveryText": "En 24-48h partout en Tunisie",
+      "payment": "Paiement sécurisé",
+      "paymentText": "CB, e-Dinar, Cash",
+      "support": "Service client",
+      "supportText": "7j/7 à votre écoute",
+      "authentic": "Produits authentiques",
+      "authenticText": "100% originaux garantis"
+    }
+  },
+  "catalogue": {
+    "title": "Nos Produits",
+    "found": "{count} produits trouvés",
+    "filters": "Filtres",
+    "sort": "Trier",
+    "sortOptions": {
+      "newest": "Plus récents",
+      "priceAsc": "Prix croissant",
+      "priceDesc": "Prix décroissant",
+      "popular": "Populaires",
+      "nameAsc": "Nom A→Z",
+      "nameDesc": "Nom Z→A"
+    },
+    "addToCart": "Ajouter au panier",
+    "outOfStock": "Rupture de stock",
+    "new": "NOUVEAU",
+    "promo": "PROMO",
+    "bestSeller": "BEST SELLER",
+    "noProducts": "Aucun produit trouvé",
+    "titleLine1": "Nos",
+    "titleLine2": "produits",
+    "description": "Découvrez tous nos produits de santé, beauté et bien-être.",
+    "filterBtn": "Filtres",
+    "sortLabel": "Trier par :",
+    "categoryLabel": "Catégorie :",
+    "categoryAll": "Tous",
+    "activeFilters": "Filtres actifs :",
+    "brandPrefix": "Marque : ",
+    "pricePrefix": "Prix : ",
+    "inStockOnly": "En stock uniquement",
+    "searchPrefix": "Recherche : ",
+    "resetBtn": "Réinitialiser",
+    "emptyDbTitle": "Nos produits arrivent bientôt",
+    "emptyDbText": "La sélection ParaGlow est en cours de préparation. Revenez très bientôt pour découvrir nos nouveautés !",
+    "noMatchTitle": "Aucun produit ne correspond à vos critères",
+    "noMatchText": "Essayez d'élargir vos filtres ou de réinitialiser la recherche.",
+    "resetFiltersBtn": "Réinitialiser les filtres",
+    "productsPerPage": "Produits par page :",
+    "prevPage": "Page précédente",
+    "nextPage": "Page suivante",
+    "paginationText": "Affichage de {start} à {end} sur {total} produits",
+    "advancedFilters": "Filtres avancés",
+    "brandsLabel": "Marques",
+    "noBrands": "Aucune marque configurée",
+    "priceRangeLabel": "Tranche de Prix (TND)",
+    "priceMin": "Min",
+    "priceMax": "Max",
+    "availabilityLabel": "Disponibilité",
+    "clearBtn": "Effacer",
+    "applyBtn": "Appliquer",
+    "available": "Disponible",
+    "voirDetails": "Voir détails",
+    "ajouterCommande": "Ajouter à la commande",
+    "commander": "Commander",
+    "noDescription": "Pas de description supplémentaire disponible.",
+    "perPage": "Produits par page :",
+    "addedToCart": "{name} ajouté au panier !",
+    "addedToWishlist": "{name} ajouté à vos favoris.",
+    "removedFromWishlist": "{name} retiré de vos favoris."
+  },
+  "product": {
+    "addToCart": "Ajouter au panier",
+    "commander": "Commander",
+    "addToWishlist": "Ajouter aux favoris",
+    "removeFromWishlist": "Retirer des favoris",
+    "inStock": "En stock",
+    "outOfStock": "Rupture de stock",
+    "quantity": "Quantité",
+    "description": "Description",
+    "similar": "Produits similaires",
+    "reviews": "Avis clients",
+    "noReviews": "Aucun avis pour le moment",
+    "reference": "Réf.",
+    "brand": "Marque",
+    "category": "Catégorie",
+    "addedToCart": "Ajouté au panier !",
+    "offerOfMonth": "OFFRE DU MOIS"
+  },
+  "cart": {
+    "title": "Mon Panier",
+    "empty": "Votre panier est vide",
+    "emptyCta": "Découvrir nos produits",
+    "subtotal": "Sous-total",
+    "delivery": "Livraison",
+    "free": "Gratuite",
+    "total": "Total",
+    "promo": "Code promo",
+    "promoPlaceholder": "Ex: GLOW30",
+    "promoApply": "Appliquer",
+    "checkout": "Passer la commande",
+    "continueShopping": "Continuer mes achats",
+    "remove": "Supprimer",
+    "freeDeliveryAt": "Livraison gratuite à partir de 200 DT",
+    "items": "{count} article(s)",
+    "summary": "Résumé de la commande",
+    "deliveryFeeText": "Calculée à la validation",
+    "validationTodo": "Commande prête à être validée !",
+    "quantityLabel": "Qté :",
+    "addedToCartSuccess": "Produit ajouté au panier !",
+    "removedFromCartSuccess": "Produit retiré du panier.",
+    "governorateLabel": "Gouvernorat",
+    "governorateRequired": "Gouvernorat requis",
+    "governoratePlaceholder": "-- Choisir le gouvernorat --",
+    "emptyDescription": "Votre panier est encore vide. Explorez notre catalogue pour y ajouter les meilleurs soins et produits de santé.",
+    "emptyCTA": "Découvrir nos produits",
+    "freeDeliveryHeader": "Félicitations ! Vous bénéficiez de la livraison gratuite",
+    "freeDeliverySub": "La livraison de votre colis est entièrement offerte.",
+    "moreForFreeDelivery": "Plus que {amount} pour la livraison gratuite",
+    "deliveryInfoTitle": "Coordonnées de livraison",
+    "deliveryName": "Nom complet",
+    "deliveryNamePlaceholder": "Ahmed Ben Ali",
+    "deliveryPhone": "Numéro de téléphone",
+    "deliveryAddress": "Adresse de livraison",
+    "deliveryAddressPlaceholder": "Rue, Ville",
+    "deliveryEmail": "Email (optionnel)",
+    "deliveryNotes": "Notes de livraison (optionnel)",
+    "deliveryNotesPlaceholder": "Ex: près du supermarché",
+    "promoDiscountLabel": "Remise code promo",
+    "promoCodeLabel": "Code promo",
+    "promoCodePlaceholder": "EX: GLOW2026",
+    "removePromoBtn": "Retirer",
+    "applyPromoBtn": "Appliquer",
+    "confirmOrderBtn": "Valider ma commande",
+    "secureBadgeTitle": "Parapharmacie 100% fiable & certifiée",
+    "secureBadgeSub": "Expédition sécurisée et soignée dans toute la Tunisie.",
+    "validation": {
+      "nameRequired": "Nom complet requis",
+      "phoneRequired": "Le numéro de téléphone doit contenir exactement 8 chiffres",
+      "addressRequired": "Adresse de livraison requise",
+      "emailInvalid": "Format d'email invalide",
+      "fillRequired": "Veuillez remplir correctement tous les champs obligatoires."
+    },
+    "promoApplied": "Code promo appliqué avec succès !",
+    "promoInvalid": "Code promo non valide.",
+    "promoExpired": "Ce code a expiré.",
+    "promoExhausted": "Ce code a été entièrement épuisé.",
+    "promoAlreadyUsed": "Vous avez déjà utilisé ce code.",
+    "promoMinOrderNotMet": "Le montant minimum de commande est de {minOrder} TND.",
+    "promoNoApplicableItems": "Ce code ne s'applique pas aux produits de votre panier.",
+    "orderSuccess": "Commande validée avec succès !",
+    "errors": {
+      "insufficientStock": "Stock insuffisant pour certains articles de votre panier.",
+      "unavailable": "Certains produits ne sont plus disponibles.",
+      "invalidPromo": "Ce code promo n'est pas applicable.",
+      "default": "Une erreur est survenue lors de la validation.",
+      "orderCreationFailed": "Impossible de créer la commande."
+    }
+  },
+  "orderConfirmation": {
+    "title": "Merci pour votre confiance",
+    "subtitle": "Votre commande {number} est confirmée.",
+    "emailSent": "Un e-mail de confirmation a été envoyé.",
+    "estimatedDelivery": "Livraison prévue",
+    "trackOrder": "Suivre ma commande",
+    "backToShop": "Retour à la boutique",
+    "needHelp": "Besoin d'aide ? Contactez notre conciergerie beauté",
+    "yourOrderNumber": "Votre numéro de commande",
+    "copyCode": "Copier le code",
+    "codeCopied": "Code copié !",
+    "copyFailed": "Impossible de copier le code.",
+    "keepCode": "Conservez ce code pour suivre votre commande.",
+    "trackMyOrder": "Suivre ma commande"
+  },
+  "orderTracking": {
+    "title": "Suivi de Commande",
+    "order": "Commande",
+    "date": "Date",
+    "status": {
+      "PENDING": "Commande Confirmée",
+      "CONFIRMED": "Commande Confirmée",
+      "PREPARING": "Préparation",
+      "SHIPPED": "Expédiée",
+      "OUT_FOR_DELIVERY": "En cours de livraison",
+      "DELIVERED": "Livrée",
+      "CANCELLED": "Annulée"
+    },
+    "today": "Aujourd'hui",
+    "between": "entre {start} et {end}",
+    "callDriver": "Appeler le livreur",
+    "carrier": "Transporteur",
+    "subtitle": "Suivez l’état de votre commande en temps réel.",
+    "orderNumberLabel": "Numéro de commande",
+    "phoneLabel": "Numéro de téléphone",
+    "orderNumberPlaceholder": "Ex : PG-2026-12345 (sur votre reçu)",
+    "phonePlaceholder": "Ex : 29 613 681",
+    "phoneHint": "Le numéro utilisé lors de la commande.",
+    "trackButton": "Suivre ma commande",
+    "itemsTitle": "Articles",
+    "subtotal": "Sous-total",
+    "promoDiscount": "Remise promo",
+    "deliveryFee": "Livraison",
+    "total": "Total",
+    "addressTitle": "Adresse de livraison",
+    "cancelledBanner": "Cette commande a été annulée. Contactez-nous pour toute question.",
+    "whatsappButton": "Contacter sur WhatsApp",
+    "whatsappMessage": "Bonjour ParaGlow, je souhaite suivre ma commande {number}",
+    "whatsappToast": "Ouverture de WhatsApp…",
+    "steps": {
+      "PENDING": "En attente",
+      "CONFIRMED": "Confirmée",
+      "PREPARING": "En préparation",
+      "SHIPPED": "Expédiée",
+      "DELIVERED": "Livrée"
+    },
+    "errors": {
+      "missing": "Veuillez saisir le numéro de commande et le téléphone.",
+      "notFound": "Aucune commande trouvée — vérifiez le numéro de commande et le téléphone.",
+      "rateLimit": "Trop de tentatives. Réessayez dans une minute."
+    }
+  },
+  "wishlist": {
+    "title": "Mes Favoris",
+    "empty": "Votre liste de favoris est vide",
+    "emptyCta": "Découvrir nos produits",
+    "addAllToCart": "Tout ajouter au panier",
+    "available": "disponibles",
+    "youMayAlsoLike": "Vous aimerez aussi",
+    "saved": "articles sauvegardés",
+    "addToCart": "Ajouter au panier",
+    "addedToWishlistSuccess": "Produit ajouté aux favoris !",
+    "removedFromWishlistSuccess": "Produit retiré des favoris.",
+    "addedToCartSuccess": "Produit ajouté au panier !",
+    "addAllToCartSuccess": "Tous les produits ont été ajoutés au panier !",
+    "emptyDescription": "Vous n'avez pas encore de favoris. Ajoutez vos produits préférés lors de votre navigation pour les retrouver ici.",
+    "viewCart": "Voir panier"
+  },
+  "search": {
+    "closeSearch": "Fermer la recherche",
+    "placeholder": "Rechercher un produit, une marque...",
+    "searchMobilePlaceholder": "Rechercher un produit...",
+    "results": "{count} résultats pour",
+    "noResults": "Aucun résultat pour",
+    "suggestions": "Suggestions populaires",
+    "categories": "Catégories",
+    "recent": "Recherches récentes",
+    "liveSearchTitle": "Résultats en direct",
+    "allResults": "Voir tous les résultats ({count})",
+    "searching": "Recherche en cours...",
+    "suggestionsTitle": "Suggestions populaires",
+    "emptyQuery": "Saisissez un mot-clé pour lancer la recherche...",
+    "noResultsFor": "Aucun produit trouvé pour « {query} »",
+    "checkSpelling": "Veuillez vérifier l'orthographe ou essayer d'autres mots-clés.",
+    "resultsTitle": "Résultats pour",
+    "resultsCount": "{count} produit(s) trouvé(s)",
+    "emptyTitle": "Aucun produit ne correspond à « {query} »",
+    "browseByCategory": "Parcourir par catégorie",
+    "viewFullCatalogue": "Voir tout le catalogue",
+    "loadError": "Impossible de charger les résultats.",
+    "retry": "Réessayer"
+  },
+  "brandStory": {
+    "title": "Notre Histoire",
+    "subtitle": "Depuis 2020, votre bien-être est notre mission",
+    "philosophy": "Notre philosophie",
+    "philosophyText": "Chez ParaGlow, nous croyons en la fusion de la nature et de la science. Nos produits sont le résultat de recherches approfondies et d'une expertise pharmaceutique, utilisant les ingrédients botaniques les plus purs pour sublimer votre beauté et votre bien-être. Nous sommes dédiés à offrir une expérience incomparable, authentique et efficace.",
+    "discoverProducts": "Découvrir nos produits →"
+  },
+  "about": {
+    "hero": {
+      "tag": "À PROPOS DE PARAGLOW",
+      "titleLine1": "Votre bien-être,",
+      "titleLine2": "notre priorité",
+      "p1": "ParaGlow est une parapharmacie en ligne tunisienne dédiée à votre santé, votre beauté et votre bien-être au quotidien.",
+      "p2": "Nous sélectionnons avec soin des produits authentiques, issus des meilleures marques, pour vous offrir efficacité, sécurité et confiance.",
+      "cardVal": "100%",
+      "cardLabel": "Authentique",
+      "cardSub": "Des produits originaux sélectionnés avec soin."
+    },
+    "expertise": {
+      "tag": "NOTRE EXPERTISE",
+      "titleLine1": "Une équipe passionnée",
+      "titleLine2": "à votre service",
+      "p": "Pharmaciens et spécialistes en santé, beauté et bien-être, nous mettons notre expertise à votre service pour vous aider à faire les meilleurs choix au quotidien."
+    },
+    "commitments": {
+      "tag": "NOS ENGAGEMENTS",
+      "titleLine1": "Des engagements forts",
+      "titleLine2": "pour votre confiance",
+      "p": "Chez ParaGlow, nous nous engageons chaque jour à vous offrir le meilleur des produits de parapharmacie, avec exigence, transparence et bienveillance.",
+      "cards": [
+        {
+          "title": "Qualité garantie",
+          "desc": "Des produits sélectionnés avec soin pour leur efficacité et leur sécurité."
+        },
+        {
+          "title": "100% authentiques",
+          "desc": "Tous nos produits sont d'origine officielle et issus de marques reconnues."
+        },
+        {
+          "title": "Conseils d'experts",
+          "desc": "Notre équipe de pharmaciens et spécialistes est à votre écoute."
+        },
+        {
+          "title": "Livraison rapide",
+          "desc": "Partout en Tunisie, dans les meilleurs délais."
+        },
+        {
+          "title": "Satisfaction garantie",
+          "desc": "Votre satisfaction est notre priorité absolue."
+        }
+      ]
+    },
+    "whyChoose": {
+      "tag": "POURQUOI NOUS CHOISIR ?",
+      "titleLine1": "Votre parapharmacie de confiance",
+      "titleLine2": "en ligne en Tunisie",
+      "items": [
+        {
+          "title": "Large choix",
+          "desc": "Des centaines de références soigneusement sélectionnées pour tous vos besoins."
+        },
+        {
+          "title": "Efficacité & sécurité",
+          "desc": "Des produits testés et approuvés par des experts pour votre bien-être au quotidien."
+        },
+        {
+          "title": "Bien-être au naturel",
+          "desc": "Une sélection de produits naturels et respectueux de votre santé et de l'environnement."
+        },
+        {
+          "title": "Prix justes",
+          "desc": "Des prix compétitifs toute l'année et des offres exclusives pour prendre soin de vous."
+        }
+      ]
+    },
+    "stats": {
+      "items": [
+        {
+          "value": "+200",
+          "line1": "Marques",
+          "line2": "de confiance"
+        },
+        {
+          "value": "+10K",
+          "line1": "Clients",
+          "line2": "satisfaits"
+        },
+        {
+          "value": "+50K",
+          "line1": "Commandes",
+          "line2": "livrées"
+        },
+        {
+          "value": "+1500",
+          "line1": "Produits",
+          "line2": "disponibles"
+        },
+        {
+          "value": "+5",
+          "line1": "Pharmaciens & experts",
+          "line2": "à votre écoute"
+        }
+      ]
+    }
+  },
+  "contact": {
+    "hero": {
+      "tag": "CONTACTEZ-NOUS",
+      "titleLine1": "Nous sommes là",
+      "titleLine2": "pour vous accompagner",
+      "p": "Une question, un conseil ou un besoin particulier ? Notre équipe est à votre écoute et vous répond dans les meilleurs délais."
+    },
+    "form": {
+      "title": "Envoyez-nous un message",
+      "subtitle": "Remplissez le formulaire ci-dessous, nous vous répondrons rapidement.",
+      "namePlaceholder": "Nom complet",
+      "emailPlaceholder": "Email",
+      "phonePlaceholder": "Téléphone",
+      "subjectPlaceholder": "Sujet",
+      "messagePlaceholder": "Votre message",
+      "submitBtn": "Envoyer le message",
+      "submitting": "Envoi en cours...",
+      "securityLabel": "Vos informations sont confidentielles et sécurisées.",
+      "errors": {
+        "nameRequired": "Le nom complet est requis.",
+        "emailRequired": "L'adresse email est requise.",
+        "emailInvalid": "L'adresse email n'est pas valide.",
+        "messageRequired": "Le message est requis."
+      },
+      "successToast": "Message envoyé ! Nous vous répondrons rapidement.",
+      "errorToast": "Erreur lors de l'envoi. Veuillez réessayer."
+    },
+    "localisation": {
+      "tag": "NOTRE LOCALISATION",
+      "titleLine1": "Venez nous rendre visite",
+      "titleLine2": "ou contactez-nous",
+      "p": "Notre équipe est disponible pour vous accueillir et vous conseiller dans le choix des meilleurs produits pour votre bien-être.",
+      "addressTitle": "Adresse",
+      "addressText": "Route de Morneg km7, El Yasminette, Ben Arous - 2096",
+      "googleMapsLink": "Voir sur Google Maps →",
+      "phoneTitle": "Téléphone",
+      "emailTitle": "Email",
+      "hoursTitle": "Horaires d'ouverture",
+      "hoursWeek": "7j/7 : 09h30 - 22h00"
+    },
+    "faq": {
+      "tag": "QUESTIONS FRÉQUENTES",
+      "titleLine1": "Vous avez une question ?",
+      "titleLine2": "Nous avons la réponse.",
+      "items": [
+        {
+          "q": "Quels sont les délais de livraison ?",
+          "a": "Nous livrons partout en Tunisie sous 24 à 72h ouvrables selon votre région."
+        },
+        {
+          "q": "Livrez-vous partout en Tunisie ?",
+          "a": "Oui, nous livrons dans tous les gouvernorats de Tunisie."
+        },
+        {
+          "q": "Comment suivre ma commande ?",
+          "a": "Après validation de votre commande, notre équipe vous contacte et vous tient informé à chaque étape jusqu'à la livraison."
+        },
+        {
+          "q": "Quels moyens de paiement acceptez-vous ?",
+          "a": "Paiement à la livraison partout en Tunisie."
+        },
+        {
+          "q": "Vos produits sont-ils authentiques ?",
+          "a": "Absolument. Tous nos produits sont 100% originaux, issus des meilleures marques et sélectionnés avec soin."
+        }
+      ],
+      "helpTitle": "Besoin d'aide personnalisée ?",
+      "helpText": "Notre équipe est à votre écoute 7j/7 de 09h30 à 22h00.",
+      "whatsappBtn": "Nous contacter sur WhatsApp"
+    },
+    "trust": {
+      "items": [
+        {
+          "title": "Livraison rapide",
+          "desc": "Partout en Tunisie, dans les meilleurs délais."
+        },
+        {
+          "title": "Conseils personnalisés",
+          "desc": "Notre équipe d'experts est à votre écoute."
+        },
+        {
+          "title": "Produits authentiques",
+          "desc": "Des produits 100% originaux et de qualité."
+        },
+        {
+          "title": "Satisfaction garantie",
+          "desc": "Votre satisfaction est notre priorité absolue."
+        }
+      ]
+    }
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "retry": "Réessayer",
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "save": "Enregistrer",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "viewAll": "Voir tout",
+    "seeMore": "Voir plus",
+    "currency": "DT",
+    "freeDelivery": "Livraison gratuite",
+    "addedToCart": "Produit ajouté !",
+    "language": "Langue",
+    "followUs": "Suivez-nous"
+  }
+}

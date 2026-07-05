@@ -1,0 +1,339 @@
+@import "tailwindcss";
+
+/* ─── PARAGLOW DESIGN SYSTEM ─────────────────────────────────── */
+@theme {
+  /* Colors */
+  --color-gold-50:  #fdf8ed;
+  --color-gold-100: #f9edcc;
+  --color-gold-200: #f3d896;
+  --color-gold-300: #ecbc56;
+  --color-gold-400: #e5a32a;
+  --color-gold-500: #d4921a;
+  --color-gold-600: #c9a052;
+  --color-gold-700: #b8860b;
+  --color-gold-800: #8b6508;
+  --color-gold-900: #5c4205;
+  --color-gold: #c9a052;
+  --color-gold-DEFAULT: #c9a052;
+
+  --color-sage-50:  #f4f7f0;
+  --color-sage-100: #e5edd9;
+  --color-sage-200: #c9d9b0;
+  --color-sage-300: #a8c080;
+  --color-sage-400: #8aa65a;
+  --color-sage-500: #8a9e6e;
+  --color-sage-600: #6b7d53;
+  --color-sage-700: #556440;
+  --color-sage-800: #3e4b2f;
+  --color-sage-900: #283220;
+  --color-sage: #8a9e6e;
+  --color-sage-DEFAULT: #8a9e6e;
+
+  --color-cream-50:  #fdfaf5;
+  --color-cream-100: #FBF6EC;
+  --color-cream-200: #f5e9d0;
+  --color-cream-300: #eedab2;
+  --color-cream-400: #e5c88a;
+  --color-cream-500: #d4af5a;
+  --color-cream: #f5edd8;
+  --color-cream-DEFAULT: #f5edd8;
+
+  --color-forest-50:  #e8f0e9;
+  --color-forest-100: #c5d9c7;
+  --color-forest-200: #8db592;
+  --color-forest-300: #4a7d52;
+  --color-forest-400: #2c5f34;
+  --color-forest-500: #153f2b;
+  --color-forest: #153f2b;
+  --color-forest-DEFAULT: #153f2b;
+
+  /* Background & foreground */
+  --color-background: #ffffff;
+  --color-foreground: #2a1f0e;
+
+  /* Fonts */
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans:  "Inter", system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+
+  /* Max-width scale (needed for max-w-* utilities) */
+  --max-width-xs:  20rem;   /* 320px */
+  --max-width-sm:  24rem;   /* 384px */
+  --max-width-md:  28rem;   /* 448px */
+  --max-width-lg:  32rem;   /* 512px */
+  --max-width-xl:  36rem;   /* 576px */
+  --max-width-2xl: 42rem;   /* 672px */
+  --max-width-3xl: 48rem;   /* 768px */
+  --max-width-4xl: 56rem;   /* 896px */
+  --max-width-5xl: 64rem;   /* 1024px */
+  --max-width-6xl: 72rem;   /* 1152px */
+  --max-width-7xl: 80rem;   /* 1280px */
+
+  /* Border radius */
+  --radius-sm:  0.375rem;
+  --radius-md:  0.75rem;
+  --radius-lg:  1rem;
+  --radius-xl:  1.5rem;
+  --radius-2xl: 2rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-gold:   0 4px 20px rgba(201, 160, 82, 0.25);
+  --shadow-gold-lg: 0 8px 40px rgba(201, 160, 82, 0.35);
+  --shadow-card:   0 2px 12px rgba(42, 31, 14, 0.08);
+  --shadow-card-hover: 0 8px 30px rgba(42, 31, 14, 0.15);
+}
+
+/* ─── GLOBAL STYLES ──────────────────────────────────────────── */
+:root {
+  --background: #ffffff;
+  --foreground: #2a1f0e;
+}
+
+/* NOTE: must live in @layer base — unlayered rules win over Tailwind's
+   layered utilities (theme/base/components/utilities) regardless of
+   specificity, which silently zeroed out every padding and mx-auto
+   utility site-wide (hero padding, header padding, top bar padding)
+   and caused the horizontal overflow/clipping. */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: "Inter", system-ui, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* Arabic RTL support */
+  [dir="rtl"] body {
+    font-family: var(--font-noto-arabic), "Noto Naskh Arabic", "Inter", system-ui, sans-serif;
+  }
+  [dir="rtl"] h1, 
+  [dir="rtl"] h2, 
+  [dir="rtl"] h3, 
+  [dir="rtl"] h4, 
+  [dir="rtl"] h5, 
+  [dir="rtl"] h6,
+  [dir="rtl"] .font-serif,
+  [dir="rtl"] .font-display {
+    font-family: var(--font-noto-arabic), "Noto Naskh Arabic", system-ui, sans-serif;
+  }
+
+  /* ─── TYPOGRAPHY ─────────────────────────────────────────── */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #2a1f0e;
+  }
+}
+
+/* ─── SCROLLBAR ──────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FBF6EC;
+}
+::-webkit-scrollbar-thumb {
+  background: #c9a052;
+  border-radius: 3px;
+}
+
+/* ─── CUSTOM UTILITIES ───────────────────────────────────────── */
+@layer utilities {
+  .font-serif {
+    font-family: "Cormorant Garamond", Georgia, serif;
+  }
+  .font-display {
+    font-family: "Cormorant Garamond", Georgia, serif;
+  }
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #d4af37 0%, #f5e17a 50%, #c9a052 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .bg-gradient-gold {
+    background: linear-gradient(135deg, #d4af37 0%, #e8c96a 50%, #c9a052 100%);
+  }
+  .bg-gradient-hero {
+    background: linear-gradient(160deg, #153f2b 0%, #2c5f34 50%, #3a7a42 100%);
+  }
+  .shadow-gold {
+    box-shadow: 0 4px 20px rgba(201, 160, 82, 0.25);
+  }
+  .shadow-gold-lg {
+    box-shadow: 0 8px 40px rgba(201, 160, 82, 0.35);
+  }
+  .shadow-card {
+    box-shadow: 0 2px 12px rgba(42, 31, 14, 0.08);
+  }
+  .shadow-card-hover {
+    box-shadow: 0 8px 30px rgba(42, 31, 14, 0.15);
+  }
+  .border-gold {
+    border-color: #c9a052;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ─── ANIMATIONS ─────────────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes slideLeft {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes slideUp {
+  from { transform: translate(-52%, 20px); opacity: 0; }
+  to   { transform: translate(-50%, 0); opacity: 1; }
+}
+
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeInUp {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+/* ─── BOTTOM NAV SAFE AREA ───────────────────────────────────── */
+.pb-safe {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+.bottom-safe {
+  bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* ─── PREMIUM INTERACTION ANIMATIONS ─────────────────────────── */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.25) 20%,
+    rgba(255, 255, 255, 0.6) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  content: '';
+  animation: shimmer 2.5s infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* Sparkles animation */
+@keyframes sparkle {
+  0%, 100% {
+    transform: scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1) rotate(180deg);
+    opacity: 1;
+  }
+}
+
+.animate-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+/* ─── MOBILE FLOATING WIDGETS POSITIONING ───────────────────── */
+@media (max-width: 768px) {
+  /* Prevent overlap of floating actions (chatbot bubble, scroll-to-top button, etc.) with BottomNav (height 64px + 16px margin) */
+  .floating-widget,
+  #chatbot-bubble,
+  .scroll-to-top-btn,
+  [class*="chatbot"],
+  [class*="scroll-to-top"] {
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 30 !important;
+  }
+}
+
+/* Light fade in up animation for performance */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  opacity: 0;
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+
