@@ -3,9 +3,13 @@ import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
 import { MEDIA_SLOTS } from '@/config/mediaSlots'
 import { revalidatePath } from 'next/cache'
-import path from 'path'
-import fs from 'fs/promises'
 import { routing } from '@/i18n/routing'
+import { createClient as createSupabaseServiceClient } from '@supabase/supabase-js'
+
+const supabase = createSupabaseServiceClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 function isAuthed(req: NextRequest): boolean {
   return checkAdminAuth(req)
@@ -32,13 +36,19 @@ async function purgeMediaBulk(ids: string[]) {
 
   if (medias.length === 0) return 0
 
-  // Unlink files in parallel
-  await Promise.all(
-    medias.map((media) => {
-      const filePath = path.join(process.cwd(), 'public', media.url)
-      return fs.unlink(filePath).catch(() => {})
-    })
-  )
+  // Delete files from Supabase Storage
+  const filenames = medias.map((media) => {
+    const url = media.url
+    if (url.startsWith('http')) {
+      const parts = url.split('/')
+      return parts[parts.length - 1]
+    }
+    return url.replace('/uploads/site/', '')
+  })
+
+  if (filenames.length > 0) {
+    await supabase.storage.from('site-media').remove(filenames)
+  }
 
   // Delete DB records in batch
   const deletedCount = await prisma.siteMedia.deleteMany({

@@ -3,9 +3,13 @@ import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
 import { MEDIA_SLOTS } from '@/config/mediaSlots'
 import { revalidatePath } from 'next/cache'
-import path from 'path'
-import fs from 'fs/promises'
 import sharp from 'sharp'
+import { createClient as createSupabaseServiceClient } from '@supabase/supabase-js'
+
+const supabase = createSupabaseServiceClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 const DEFAULT_IMAGE_QUALITY = 85
 const DEFAULT_MAX_IMAGE_SIZE_MB = 15
@@ -125,14 +129,10 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.siteMedia.findFirst({ where: { slotKey, supprime: false } })
 
     // Save new file
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'site')
-    await fs.mkdir(uploadDir, { recursive: true })
-
     const ext = isImage ? 'webp' : mimeType.split('/')[1]
     const safeName = `${slotKey.replace(/\./g, '-')}-${Date.now()}.${ext}`
-    const filePath = path.join(uploadDir, safeName)
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    let buffer = Buffer.from(await file.arrayBuffer())
     let width: number | null = null
     let height: number | null = null
 
@@ -141,12 +141,27 @@ export async function POST(req: NextRequest) {
       const metadata = await processed.metadata()
       width = metadata.width ?? null
       height = metadata.height ?? null
-      await processed.toFile(filePath)
-    } else {
-      await fs.writeFile(filePath, buffer)
+      buffer = Buffer.from(await processed.toBuffer())
     }
 
-    const url = `/uploads/site/${safeName}`
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('site-media')
+      .upload(safeName, buffer, {
+        contentType: isImage ? 'image/webp' : mimeType,
+        upsert: true
+      })
+
+    if (uploadError) {
+      console.error('[Supabase Storage Upload Error]', uploadError)
+      return NextResponse.json({ error: "Erreur d'upload vers Supabase Storage" }, { status: 500 })
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('site-media')
+      .getPublicUrl(safeName)
+
+    const url = publicUrl
 
     if (existing) {
       await prisma.siteMedia.update({
