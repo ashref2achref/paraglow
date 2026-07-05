@@ -9,6 +9,7 @@ import {
   X,
   User,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import Modal from '@/components/ui/Modal'
@@ -31,6 +32,7 @@ export default function ClientsCorbeillePage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [deleteMode, setDeleteMode] = useState<'single' | 'bulk' | 'empty'>('single')
   const [activeCustomerId, setActiveCustomerId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     loadTrash()
@@ -71,20 +73,28 @@ export default function ClientsCorbeillePage() {
   }
 
   const handleConfirmDelete = async () => {
+    setDeleting(true)
     try {
       if (deleteMode === 'empty') {
+        const expectedCount = customers.length
         const res = await fetch('/api/admin/customers/trash', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'empty' }),
         })
+        const data = await res.json()
         if (res.ok) {
-          toast.success('La corbeille a été vidée.')
-          setCustomers([])
+          const deletedCount = data.deletedCount || 0
+          if (deletedCount !== expectedCount) {
+            toast.error(`La suppression a échoué pour ${expectedCount - deletedCount} élément(s).`)
+          } else {
+            toast.success('La corbeille a été vidée.')
+          }
           setSelectedIds([])
         } else {
-          toast.error('Erreur lors du vidage de la corbeille')
+          toast.error(data.error || 'Erreur lors du vidage de la corbeille')
         }
+        if (res.ok) await loadTrash()
       } else {
         const ids = deleteMode === 'single' ? [activeCustomerId!] : selectedIds
         const res = await fetch('/api/admin/customers/trash', {
@@ -92,17 +102,24 @@ export default function ClientsCorbeillePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids, action: 'delete' }),
         })
+        const data = await res.json()
         if (res.ok) {
-          toast.success(`${ids.length} client(s) supprimé(s) définitivement.`)
-          setCustomers((prev) => prev.filter((c) => !ids.includes(c.id)))
-          setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
+          const deletedCount = data.deletedCount || 0
+          if (deletedCount !== ids.length) {
+            toast.error(`La suppression a échoué pour ${ids.length - deletedCount} élément(s).`)
+          } else {
+            toast.success(`${ids.length} client(s) supprimé(s) définitivement.`)
+          }
+          setSelectedIds([])
+          await loadTrash()
         } else {
-          toast.error('Erreur lors de la suppression')
+          toast.error(data.error || 'Erreur lors de la suppression')
         }
       }
     } catch {
       toast.error('Erreur lors de la suppression')
     } finally {
+      setDeleting(false)
       setIsDeleteConfirmOpen(false)
       setActiveCustomerId(null)
     }
@@ -304,15 +321,18 @@ export default function ClientsCorbeillePage() {
                 setIsDeleteConfirmOpen(false)
                 setActiveCustomerId(null)
               }}
+              disabled={deleting}
               className="px-4 py-2 border border-[#eadfca] text-[#2a1f0e] rounded-lg font-semibold hover:bg-[#FBF6EC] cursor-pointer bg-white"
             >
               Annuler
             </button>
             <button
               onClick={handleConfirmDelete}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-semibold shadow-sm cursor-pointer border-none"
+              disabled={deleting}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:bg-rose-300 text-white rounded-lg font-semibold shadow-sm cursor-pointer disabled:cursor-not-allowed border-none inline-flex items-center gap-1.5"
             >
-              Confirmer
+              {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {deleting ? 'Suppression...' : 'Confirmer'}
             </button>
           </div>
         </div>
