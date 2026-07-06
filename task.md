@@ -63,6 +63,11 @@
 - [ ] Ajouter la clause de délai de grâce (createdAt < 1 jour) dans `purgeOrphans.ts`
 - [ ] Ajouter les actions API `'dry_run_purge_orphans'` et `'force_purge_orphans'` dans `settings/route.ts`
 - [ ] Ajouter l'UI et la modal de confirmation dans `parametres/page.tsx`
+- [x] Modify `next.config.ts` to whitelist `qgawickfkqtvcvchgfep.supabase.co` in `remotePatterns`
+- [x] Verify any running dev server tasks and restart or launch a new dev server
+- [x] Build check with `npm run build` or similar compilation step
+- [x] Verify localhost:3000 home page loading and image displays
+- [x] Add changes to git, commit, and push to GitHub
 - [ ] Valider la compilation (`npx tsc --noEmit` + `npm run build`)
 - [ ] Commit Partie 7
 
