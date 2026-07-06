@@ -5,9 +5,8 @@ import { revalidateAllLocales } from '@/lib/revalidate'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 // Helper to generate a slug
 function generateSlug(text: string): string {
@@ -20,7 +19,7 @@ function generateSlug(text: string): string {
 }
 
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -149,24 +148,27 @@ export async function GET(request: NextRequest) {
   }
 }
 
+import { adminProductSchema } from '@/lib/validation'
+
 export async function POST(request: NextRequest) {
-  if (!checkAuth(request)) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
   try {
     const body = await request.json()
+    const validated = adminProductSchema.safeParse(body)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
+    }
+
     const {
-      code, barcode, name, slug, categoryId, brandId, description, descriptionAr, descriptionEn,
+      code, barcode, name, nameAr, nameEn, slug, categoryId, brandId, description, descriptionAr, descriptionEn,
       purchasePriceHT, margin, tva, sellingPriceTTC, sellingPriceHT, publicPrice,
       stock, stockMin, loyaltyPoints, imageUrl, images,
       remiseType, remiseValeur, remiseVisible,
       isActive, isFeatured, isBestSeller, isNew, isOnSale,
-    } = body
-
-    if (!code || !name) {
-      return NextResponse.json({ error: 'Code et désignation requis' }, { status: 400 })
-    }
+    } = validated.data
 
     // Check code uniqueness
     const existing = await prisma.product.findUnique({ where: { code } })
@@ -181,31 +183,33 @@ export async function POST(request: NextRequest) {
         code,
         barcode: barcode || null,
         name,
+        nameAr: nameAr || null,
+        nameEn: nameEn || null,
         slug: calculatedSlug,
         categoryId: categoryId || null,
         brandId: brandId || null,
         description: description || null,
         descriptionAr: descriptionAr || null,
         descriptionEn: descriptionEn || null,
-        purchasePriceHT: parseFloat(purchasePriceHT) || 0,
-        margin: parseFloat(margin) || 0,
-        tva: parseFloat(tva) || 19,
-        sellingPriceTTC: parseFloat(sellingPriceTTC) || 0,
-        sellingPriceHT: parseFloat(sellingPriceHT) || 0,
-        publicPrice: publicPrice ? parseFloat(publicPrice) : null,
-        stock: parseInt(stock) || 0,
-        stockMin: parseInt(stockMin) || 5,
-        loyaltyPoints: parseInt(loyaltyPoints) || 0,
+        purchasePriceHT,
+        margin,
+        tva,
+        sellingPriceTTC,
+        sellingPriceHT,
+        publicPrice,
+        stock,
+        stockMin,
+        loyaltyPoints,
         imageUrl: imageUrl || null,
-        images: JSON.stringify(images || []),
-        remiseType: remiseType || 'AUCUNE',
-        remiseValeur: remiseValeur ? parseFloat(remiseValeur) : null,
-        remiseVisible: remiseVisible || false,
-        isActive: isActive !== false,
-        isFeatured: isFeatured || false,
-        isBestSeller: isBestSeller || false,
-        isNew: isNew || false,
-        isOnSale: isOnSale || false,
+        images: typeof images === 'string' ? images : JSON.stringify(images || []),
+        remiseType,
+        remiseValeur,
+        remiseVisible,
+        isActive,
+        isFeatured,
+        isBestSeller,
+        isNew,
+        isOnSale,
         supprime: false,
       },
     })
@@ -229,6 +233,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ product }, { status: 201 })
   } catch (error: any) {
     console.error('Admin products POST error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur lors de la création' }, { status: 500 })
+    console.error('Product POST error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la création du produit' }, { status: 500 })
   }
 }

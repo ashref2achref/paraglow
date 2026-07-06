@@ -51,6 +51,8 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
     code: product?.code || '',
     barcode: product?.barcode || '',
     name: product?.name || '',
+    nameAr: product?.nameAr || '',
+    nameEn: product?.nameEn || '',
     slug: product?.slug || '',
     categoryId: product?.categoryId || '',
     brandId: product?.brandId || '',
@@ -408,6 +410,30 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
                 onChange={(e) => set('slug', e.target.value)}
                 className={inputStyle}
                 placeholder="Auto-généré à partir du nom"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelStyle}>Désignation (Arabe)</label>
+              <input
+                type="text"
+                value={form.nameAr}
+                onChange={(e) => set('nameAr', e.target.value)}
+                className={`${inputStyle} text-right`}
+                dir="rtl"
+                placeholder="اسم المنتج بالعربية..."
+              />
+            </div>
+            <div>
+              <label className={labelStyle}>Désignation (Anglais)</label>
+              <input
+                type="text"
+                value={form.nameEn}
+                onChange={(e) => set('nameEn', e.target.value)}
+                className={inputStyle}
+                placeholder="Product name in English..."
               />
             </div>
           </div>

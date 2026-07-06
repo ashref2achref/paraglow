@@ -4,9 +4,8 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 // Whitelisted ORDER BY clauses only — never built from raw user input.
 const SORT_CLAUSES: Record<string, string> = {
@@ -39,7 +38,7 @@ type RawCustomerRow = {
 // Uses a SQL aggregate (GROUP BY) + LIMIT/OFFSET so we never load every client and every one of
 // their orders into memory just to paginate in JS (see audit: this was the previous behavior).
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')
@@ -100,35 +99,35 @@ export async function GET(request: NextRequest) {
   }
 }
 
+import { adminCustomerSchema } from '@/lib/validation'
+
 // POST: manually create a client from the admin (not tied to an order)
 export async function POST(request: NextRequest) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   try {
     const body = await request.json()
-    const { nom, prenom, phone, email, adresse, wilaya, notes, partnerId } = body
-
-    const cleanPhone = typeof phone === 'string' ? phone.trim() : ''
-    const cleanNom = typeof nom === 'string' ? nom.trim() : ''
-
-    if (!cleanNom || !cleanPhone) {
-      return NextResponse.json({ error: 'Le nom et le téléphone sont requis' }, { status: 400 })
+    const validated = adminCustomerSchema.safeParse(body)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
     }
 
-    const existing = await prisma.client.findUnique({ where: { phone: cleanPhone } })
+    const { nom, prenom, phone, email, adresse, wilaya, notes, partnerId } = validated.data
+
+    const existing = await prisma.client.findUnique({ where: { phone } })
     if (existing) {
       return NextResponse.json({ error: 'Ce numéro de téléphone est déjà attribué à un autre client' }, { status: 400 })
     }
 
     const client = await prisma.client.create({
       data: {
-        nom: cleanNom,
-        prenom: typeof prenom === 'string' ? prenom.trim() : '',
-        phone: cleanPhone,
-        email: email ? String(email).trim() : null,
-        adresse: adresse ? String(adresse).trim() : null,
-        wilaya: wilaya ? String(wilaya).trim() : null,
-        notes: notes ? String(notes).trim() : null,
+        nom,
+        prenom: prenom || '',
+        phone,
+        email: email || null,
+        adresse: adresse || null,
+        wilaya: wilaya || null,
+        notes: notes || null,
         partnerId: partnerId || null,
       },
     })
@@ -145,6 +144,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ customer: client }, { status: 201 })
   } catch (error: any) {
     console.error('Admin client POST error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur serveur' }, { status: 500 })
+    console.error('Customer POST error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la création du client' }, { status: 500 })
   }
 }

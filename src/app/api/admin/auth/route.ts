@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { isRateLimited } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
+  if (await isRateLimited(request, 'login', { windowMs: 15 * 60 * 1000, maxHits: 5 })) {
+    return NextResponse.json(
+      { error: 'Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.' },
+      { status: 429 }
+    )
+  }
+
   try {
     const body = await request.json()
     const { email, password } = body

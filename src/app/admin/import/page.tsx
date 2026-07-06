@@ -246,6 +246,12 @@ export default function ImportPage() {
       return
     }
 
+    const MAX_SIZE_MB = 20
+    if (selectedFile.size > MAX_SIZE_MB * 1024 * 1024) {
+      toast.error(`Le fichier est trop volumineux. La taille maximale autorisée est de ${MAX_SIZE_MB} Mo.`)
+      return
+    }
+
     setFile(selectedFile)
     setLoading(true)
 

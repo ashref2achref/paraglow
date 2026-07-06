@@ -213,7 +213,7 @@ export default function SearchClient({ locale, initialQuery }: SearchClientProps
             {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
               <div
                 key={i}
-                className="w-full flex flex-col bg-white border border-[#c9a052]/15 rounded-2xl p-5 shadow-xs animate-pulse"
+                className="w-full flex flex-col items-start bg-white border border-[#c9a052]/15 rounded-2xl p-5 shadow-xs animate-pulse"
               >
                 <div className="w-full h-[260px] bg-[#FBF6EC]/50 rounded-xl flex items-center justify-center">
                   <Leaf className="w-10 h-10 text-[#c9a052]/20 animate-spin" style={{ animationDuration: '3s' }} />

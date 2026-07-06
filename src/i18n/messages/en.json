@@ -64,7 +64,7 @@
       "titlePart3": "elegant and reliable",
       "p": "Care, health, beauty and well-being selected with attention, delivered all over Tunisia."
     },
-    "announcement": "Free delivery from 200 DT | Customer service available",
+    "announcement": "Free delivery from {threshold} DT | Customer service available",
     "categories": {
       "title": "Our categories",
       "viewAll": "View all"
@@ -228,6 +228,8 @@
     "brand": "Brand",
     "category": "Category",
     "addedToCart": "Added to cart!",
+    "secureTitle": "100% Secure Purchase",
+    "secureDesc": "Authentic products & Cash on delivery all over Tunisia",
     "offerOfMonth": "OFFER OF THE MONTH"
   },
   "cart": {
@@ -244,7 +246,8 @@
     "checkout": "Checkout",
     "continueShopping": "Continue shopping",
     "remove": "Remove",
-    "freeDeliveryAt": "Free delivery from 200 DT",
+    "clearCart": "Clear cart",
+    "freeDeliveryAt": "Free delivery from {threshold} DT",
     "items": "{count} item(s)",
     "summary": "Order Summary",
     "deliveryFeeText": "Calculated at checkout",
@@ -303,6 +306,9 @@
   "orderConfirmation": {
     "title": "Thank you for your trust",
     "subtitle": "Your order {number} is confirmed.",
+    "successMessage": "Your order has been registered successfully. Thank you for your trust!",
+    "phoneValidationTitle": "Phone Validation",
+    "phoneValidationDesc": "Our team will contact you by phone to confirm shipment.",
     "emailSent": "A confirmation email has been sent.",
     "estimatedDelivery": "Estimated delivery",
     "trackOrder": "Track my order",
@@ -318,6 +324,7 @@
   "orderTracking": {
     "title": "Order Tracking",
     "order": "Order",
+    "orderFromDate": "Order placed on {date}",
     "date": "Date",
     "status": {
       "PENDING": "Order Confirmed",
@@ -326,7 +333,8 @@
       "SHIPPED": "Shipped",
       "OUT_FOR_DELIVERY": "Out for delivery",
       "DELIVERED": "Delivered",
-      "CANCELLED": "Cancelled"
+      "CANCELLED": "Cancelled",
+      "REFUNDED": "Refunded"
     },
     "today": "Today",
     "between": "between {start} and {end}",
@@ -335,7 +343,7 @@
     "subtitle": "Track your order status in real time.",
     "orderNumberLabel": "Order number",
     "phoneLabel": "Phone number",
-    "orderNumberPlaceholder": "E.g. PG-2026-12345 (on your receipt)",
+    "orderNumberPlaceholder": "E.g. PG-B447FV (on your receipt)",
     "phonePlaceholder": "E.g. 29 613 681",
     "phoneHint": "The number used when ordering.",
     "trackButton": "Track my order",

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 // existing "Commandes" alert badge) — avoids fetching the full message list just to
 // render an unread count next to the nav item.
 export async function GET(request: NextRequest) {
-  if (!checkAdminAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAdminAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   try {
     const unreadCount = await prisma.contactMessage.count({ where: { isRead: false } })

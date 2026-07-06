@@ -18,14 +18,13 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks
 }
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 // GET: poll the live status of an import batch (used by the wizard's progress step
 // instead of a fake animated bar, since the actual processing runs in the background).
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -50,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 

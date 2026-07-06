@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
  * just to extract nonConfirmedAlertCount (which triggered 5 DB queries).
  */
 export async function GET(request: NextRequest) {
-  if (!checkAdminAuth(request)) {
+  if (!(await checkAdminAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 

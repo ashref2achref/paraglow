@@ -46,7 +46,7 @@ export const fallbackSettings: PublicSettings = {
   },
   livraison: {
     defaultDeliveryFee: 7.0,
-    freeDeliveryThreshold: 150.0,
+    freeDeliveryThreshold: 0.0,
     deliveryNotes: "partout en Tunisie",
     livraisonGratuiteActive: false
   },

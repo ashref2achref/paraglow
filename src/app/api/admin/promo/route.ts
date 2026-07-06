@@ -4,12 +4,11 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   try {
     const promos = await prisma.promoCode.findMany({
       where: { supprime: false },
@@ -39,10 +38,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
+import { adminPromoSchema } from '@/lib/validation'
+
 export async function POST(request: NextRequest) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   try {
     const body = await request.json()
+    const validated = adminPromoSchema.safeParse(body)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
+    }
+
     const { 
       code, 
       type, 
@@ -55,11 +61,7 @@ export async function POST(request: NextRequest) {
       startDate, 
       endDate, 
       isActive 
-    } = body
-
-    if (!code || value === undefined) {
-      return NextResponse.json({ error: 'Code et valeur requis' }, { status: 400 })
-    }
+    } = validated.data
 
     // Check if code already exists
     const uppercaseCode = code.toUpperCase().trim()
@@ -96,6 +98,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ promo }, { status: 201 })
   } catch (error: any) {
     console.error('Promo code creation error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur création' }, { status: 500 })
+    console.error('Promo creation error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la création du code promo' }, { status: 500 })
   }
 }

@@ -38,6 +38,8 @@ export default function StoreHydrator() {
             const data = await res.json()
             const products = (data.products || []) as StoreProduct[]
 
+            const locale = window.location.pathname.split('/')[1] || 'fr'
+
             // Merge details into the cart items
             const updatedCart = useCartStore.getState().items.map((item) => {
               if (!item.name) {
@@ -45,12 +47,13 @@ export default function StoreHydrator() {
                 if (p) {
                   let img = ''
                   try {
-                    const parsed = JSON.parse(p.images)
+                    const parsed = JSON.parse((p as any).images)
                     img = parsed[0] || ''
                   } catch {}
+                  const resolvedName = locale === 'ar' ? ((p as any).nameAr || p.name) : locale === 'en' ? ((p as any).nameEn || p.name) : p.name
                   return {
                     ...item,
-                    name: p.name,
+                    name: resolvedName,
                     slug: p.slug,
                     price: p.sellingPriceTTC,
                     image: img,
@@ -68,12 +71,13 @@ export default function StoreHydrator() {
                 if (p) {
                   let img = ''
                   try {
-                    const parsed = JSON.parse(p.images)
+                    const parsed = JSON.parse((p as any).images)
                     img = parsed[0] || ''
                   } catch {}
+                  const resolvedName = locale === 'ar' ? ((p as any).nameAr || p.name) : locale === 'en' ? ((p as any).nameEn || p.name) : p.name
                   return {
                     ...item,
-                    name: p.name,
+                    name: resolvedName,
                     slug: p.slug,
                     price: p.sellingPriceTTC,
                     image: img,

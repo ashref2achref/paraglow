@@ -4,12 +4,11 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     const body = await request.json()
@@ -32,7 +31,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     await prisma.category.delete({ where: { id } })

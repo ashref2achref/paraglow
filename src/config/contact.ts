@@ -30,7 +30,7 @@ export const contactConfig: ContactConfig = {
   addressAr: "طريق مرناق كم 7، الياسمينات، بن عروس - 2096",
   socials: {
     instagram: "https://www.instagram.com/para_glow_fs?igsh=MWo2ajhja2NqZmkxaQ==",
-    tiktok: "https://www.tiktok.com/@helafkihe?_r=1&_t=ZS-97VpPzTN0Fk",
+    tiktok: "https://www.tiktok.com/@paraglow4?_r=1&_t=ZS-97mdHpIYNHU",
     facebook: "https://www.facebook.com/profile.php?id=61591658786356&mibextid=wwXIfr",
     whatsapp: "https://wa.me/21629613681"
   }

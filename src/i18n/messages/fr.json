@@ -64,7 +64,7 @@
       "titlePart3": "élégante et fiable",
       "p": "Soins, santé, beauté et bien-être sélectionnés avec attention, livrés partout en Tunisie."
     },
-    "announcement": "Livraison gratuite à partir de 200 DT | Service client disponible",
+    "announcement": "Livraison gratuite à partir de {threshold} DT | Service client disponible",
     "categories": {
       "title": "Nos catégories",
       "viewAll": "Voir tout"
@@ -228,6 +228,8 @@
     "brand": "Marque",
     "category": "Catégorie",
     "addedToCart": "Ajouté au panier !",
+    "secureTitle": "Achat 100% Sécurisé",
+    "secureDesc": "Produits authentiques & Paiement à la livraison partout en Tunisie",
     "offerOfMonth": "OFFRE DU MOIS"
   },
   "cart": {
@@ -244,7 +246,8 @@
     "checkout": "Passer la commande",
     "continueShopping": "Continuer mes achats",
     "remove": "Supprimer",
-    "freeDeliveryAt": "Livraison gratuite à partir de 200 DT",
+    "clearCart": "Vider le panier",
+    "freeDeliveryAt": "Livraison gratuite à partir de {threshold} DT",
     "items": "{count} article(s)",
     "summary": "Résumé de la commande",
     "deliveryFeeText": "Calculée à la validation",
@@ -303,6 +306,9 @@
   "orderConfirmation": {
     "title": "Merci pour votre confiance",
     "subtitle": "Votre commande {number} est confirmée.",
+    "successMessage": "Votre commande a été enregistrée avec succès. Merci pour votre confiance !",
+    "phoneValidationTitle": "Validation téléphonique",
+    "phoneValidationDesc": "Notre équipe vous contactera par téléphone pour confirmer l'expédition.",
     "emailSent": "Un e-mail de confirmation a été envoyé.",
     "estimatedDelivery": "Livraison prévue",
     "trackOrder": "Suivre ma commande",
@@ -318,6 +324,7 @@
   "orderTracking": {
     "title": "Suivi de Commande",
     "order": "Commande",
+    "orderFromDate": "Commande du {date}",
     "date": "Date",
     "status": {
       "PENDING": "Commande Confirmée",
@@ -326,7 +333,8 @@
       "SHIPPED": "Expédiée",
       "OUT_FOR_DELIVERY": "En cours de livraison",
       "DELIVERED": "Livrée",
-      "CANCELLED": "Annulée"
+      "CANCELLED": "Annulée",
+      "REFUNDED": "Remboursée"
     },
     "today": "Aujourd'hui",
     "between": "entre {start} et {end}",
@@ -335,7 +343,7 @@
     "subtitle": "Suivez l’état de votre commande en temps réel.",
     "orderNumberLabel": "Numéro de commande",
     "phoneLabel": "Numéro de téléphone",
-    "orderNumberPlaceholder": "Ex : PG-2026-12345 (sur votre reçu)",
+    "orderNumberPlaceholder": "Ex : PG-B447FV (sur votre reçu)",
     "phonePlaceholder": "Ex : 29 613 681",
     "phoneHint": "Le numéro utilisé lors de la commande.",
     "trackButton": "Suivre ma commande",

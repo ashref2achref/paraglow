@@ -1,6 +1,6 @@
 'use client'
 
-import { use } from 'react'
+import { use, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, ShoppingBag, Truck, PackageSearch, Copy } from 'lucide-react'
@@ -8,12 +8,19 @@ import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 import Container from '@/components/ui/Container'
 import { getDeliveryEstimate } from '@/lib/delivery'
+import { useCartStore } from '@/store/cart'
 
 export default function ConfirmationPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = use(params)
   const searchParams = useSearchParams()
-  const orderNumber = searchParams.get('orderNumber') || 'PG-2026-XXXXX'
+  const orderNumber = searchParams.get('orderNumber') || 'PG-XXXXXX'
   const wilaya = searchParams.get('wilaya') || ''
+
+  const clearCart = useCartStore((s) => s.clearCart)
+
+  useEffect(() => {
+    clearCart()
+  }, [clearCart])
 
   const t = useTranslations('orderConfirmation')
   const isRTL = locale === 'ar'
@@ -35,11 +42,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ locale:
           </h1>
 
           <p className="text-sm text-[#153f2b]/80 max-w-md">
-            {locale === 'ar' 
-              ? 'تم تسجيل طلبيتك بنجاح. شكرا لثقتك بنا!' 
-              : locale === 'en' 
-                ? 'Your order has been registered successfully. Thank you for your trust!' 
-                : 'Votre commande a été enregistrée avec succès. Merci pour votre confiance !'}
+            {t('successMessage')}
           </p>
 
           {/* Order Number Display */}
@@ -87,11 +90,9 @@ export default function ConfirmationPage({ params }: { params: Promise<{ locale:
             <div className="flex gap-3 items-start">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-[#153f2b]">Validation téléphonique</p>
+                <p className="font-semibold text-[#153f2b]">{t('phoneValidationTitle')}</p>
                 <p className="text-[#153f2b]/70 mt-0.5">
-                  {locale === 'ar' 
-                    ? 'سيتصل بك فريقنا هاتفياً لتأكيد الشحن.' 
-                    : 'Notre équipe vous contactera par téléphone pour confirmer l\'expédition.'}
+                  {t('phoneValidationDesc')}
                 </p>
               </div>
             </div>
@@ -104,7 +105,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ locale:
               className="flex-1 py-3.5 bg-[#153f2b] hover:bg-[#c9a052] text-white text-sm font-semibold rounded-xl shadow-xs hover:shadow-md transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
             >
               <PackageSearch className="w-4 h-4" />
-              <span>{locale === 'ar' ? 'تتبع طلبيتي' : locale === 'en' ? 'Track My Order' : 'Suivre ma commande'}</span>
+              <span>{t('trackMyOrder')}</span>
             </Link>
 
             <Link

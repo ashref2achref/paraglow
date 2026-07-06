@@ -104,7 +104,7 @@ export default function SelectionSection({
                     {[1, 2, 3].map((i) => (
                       <div
                         key={i}
-                        className="w-[240px] sm:w-[260px] lg:w-[230px] xl:w-[240px] flex-shrink-0 snap-start bg-white/40 border border-[#c9a052]/10 rounded-2xl p-4 flex flex-col gap-4 animate-pulse"
+                        className="w-[240px] sm:w-[260px] lg:w-[230px] xl:w-[240px] flex-shrink-0 snap-start bg-white/40 border border-[#c9a052]/10 rounded-2xl p-4 flex flex-col items-start gap-4 animate-pulse"
                       >
                         <div className="w-20 h-5 bg-white/60 rounded-full" />
                         <div className="w-full h-48 bg-white/60 rounded-xl flex items-center justify-center">

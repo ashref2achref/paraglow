@@ -4,13 +4,12 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 // GET: Retrieve single Client details and full history of orders
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
 
   try {
@@ -46,18 +45,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
+import { adminCustomerSchema } from '@/lib/validation'
+
 // PUT: Update Client profile details
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
 
   try {
     const body = await request.json()
-    const { nom, prenom, phone, email, adresse, notes, partnerId } = body
-
-    if (!phone || !nom) {
-      return NextResponse.json({ error: 'Le nom et le téléphone sont requis' }, { status: 400 })
+    const validated = adminCustomerSchema.safeParse(body)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
     }
+
+    const { nom, prenom, phone, email, adresse, wilaya, notes, partnerId } = validated.data
 
     const current = await prisma.client.findUnique({ where: { id } })
     if (!current) return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })
@@ -65,7 +67,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Check if phone number is already taken by another client
     const existing = await prisma.client.findFirst({
       where: {
-        phone: phone.trim(),
+        phone,
         NOT: { id }
       }
     })
@@ -75,19 +77,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const nextValues = {
-      nom: nom.trim(),
-      prenom: prenom ? prenom.trim() : '',
-      phone: phone.trim(),
-      email: email ? email.trim() : null,
-      adresse: adresse ? adresse.trim() : null,
-      notes: notes ? notes.trim() : null,
-      partnerId: partnerId === '' ? null : (partnerId || undefined),
+      nom,
+      prenom: prenom || '',
+      phone,
+      email: email || null,
+      adresse: adresse || null,
+      wilaya: wilaya || null,
+      notes: notes || null,
+      partnerId: partnerId === '' ? null : (partnerId || null),
     }
 
     const changes: Record<string, { before: unknown; after: unknown }> = {}
-    for (const key of ['nom', 'prenom', 'phone', 'email', 'adresse', 'notes', 'partnerId'] as const) {
+    for (const key of ['nom', 'prenom', 'phone', 'email', 'adresse', 'wilaya', 'notes', 'partnerId'] as const) {
       const before = current[key]
-      const after = nextValues[key] === undefined ? before : nextValues[key]
+      const after = nextValues[key]
       if (before !== after) changes[key] = { before, after }
     }
 
@@ -111,14 +114,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ customer: updated })
   } catch (error: any) {
     console.error('Admin client PUT error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur lors de la mise à jour' }, { status: 500 })
+    console.error('Customer PUT error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la mise à jour du client' }, { status: 500 })
   }
 }
 
 // DELETE: Soft-deletes the Client (moves it to the corbeille). Permanent deletion only
 // happens from the corbeille itself, via /api/admin/customers/trash.
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
 
   try {
@@ -146,6 +150,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ success: true, message: 'Client mis à la corbeille' })
   } catch (error: any) {
     console.error('Admin client DELETE error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur serveur' }, { status: 500 })
+    console.error('Customer DELETE error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la suppression du client' }, { status: 500 })
   }
 }

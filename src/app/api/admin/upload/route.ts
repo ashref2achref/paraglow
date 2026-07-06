@@ -10,9 +10,8 @@ const MAX_MULTIPART_OVERHEAD = 1024 * 1024
 const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-function isAuthed(req: NextRequest): boolean {
-  return checkAdminAuth(req)
-}
+async function isAuthed(req: NextRequest): Promise<boolean> {
+  return await checkAdminAuth(req);}
 
 function contentLengthTooLarge(req: NextRequest, maxSize: number) {
   const raw = req.headers.get('content-length')
@@ -47,7 +46,7 @@ async function detectImageType(file: File) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthed(req)) {
+  if (!(await isAuthed(req))) {
     return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
   }
 

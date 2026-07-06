@@ -1,49 +1,31 @@
 import type { Prisma } from '@prisma/client'
+import crypto from 'crypto'
 
-const COUNTER_ID = 'orders'
-const DEFAULT_PREFIX = 'PG-2026-'
-
-async function getOrderPrefix(tx: Prisma.TransactionClient) {
-  const settingsRow = await tx.setting.findUnique({ where: { key: 'commandes' } })
-  if (!settingsRow) return DEFAULT_PREFIX
-
-  try {
-    const parsed = JSON.parse(settingsRow.value) as { orderPrefix?: unknown }
-    return typeof parsed.orderPrefix === 'string' && parsed.orderPrefix.trim()
-      ? parsed.orderPrefix.trim()
-      : DEFAULT_PREFIX
-  } catch {
-    return DEFAULT_PREFIX
-  }
-}
-
-function parseSequence(orderNumber: string, prefix: string) {
-  if (!orderNumber.startsWith(prefix)) return 0
-  const parsed = Number.parseInt(orderNumber.slice(prefix.length), 10)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-export async function generateOrderNumber(tx: Prisma.TransactionClient) {
-  const prefix = await getOrderPrefix(tx)
-  const latestOrder = await tx.order.findFirst({
-    where: { orderNumber: { startsWith: prefix } },
-    orderBy: { orderNumber: 'desc' },
-    select: { orderNumber: true },
-  })
-  const maxExistingSequence = latestOrder ? parseSequence(latestOrder.orderNumber, prefix) : 0
-
-  let counter = await tx.counter.upsert({
-    where: { id: COUNTER_ID },
-    update: { value: { increment: 1 } },
-    create: { id: COUNTER_ID, value: maxExistingSequence + 1 },
-  })
-
-  if (counter.value <= maxExistingSequence) {
-    counter = await tx.counter.update({
-      where: { id: COUNTER_ID },
-      data: { value: maxExistingSequence + 1 },
-    })
+export async function generateOrderNumber(tx: Prisma.TransactionClient): Promise<string> {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let code = ''
+  
+  // Generate 6 random alphanumeric characters
+  while (code.length < 6) {
+    const bytes = crypto.randomBytes(6)
+    for (let i = 0; i < bytes.length && code.length < 6; i++) {
+      const idx = bytes[i] % chars.length
+      code += chars[idx]
+    }
   }
 
-  return `${prefix}${String(counter.value).padStart(5, '0')}`
+  const orderNumber = `PG-${code}`
+
+  // Check uniqueness in database to avoid collisions
+  const existing = await tx.order.findUnique({
+    where: { orderNumber },
+    select: { id: true }
+  })
+
+  if (existing) {
+    return generateOrderNumber(tx)
+  }
+
+  return orderNumber
 }
+

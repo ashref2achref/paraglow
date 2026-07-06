@@ -11,9 +11,8 @@ const supabase = createSupabaseServiceClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-function isAuthed(req: NextRequest): boolean {
-  return checkAdminAuth(req)
-}
+async function isAuthed(req: NextRequest): Promise<boolean> {
+  return await checkAdminAuth(req);}
 
 function revalidatePages(slotKey: string) {
   const locales = routing.locales
@@ -59,7 +58,7 @@ async function purgeMediaBulk(ids: string[]) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthed(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await isAuthed(req))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const media = await prisma.siteMedia.findMany({
     where: { supprime: true },
@@ -69,7 +68,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthed(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await isAuthed(req))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   try {
     const { ids, action } = await req.json()

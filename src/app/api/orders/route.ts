@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { generateOrderNumber } from '@/lib/orderNumber'
+import { isRateLimited } from '@/lib/rateLimit'
 import {
   OrderValidationError,
   assertNoClientPricingPayload,
@@ -13,43 +14,41 @@ import {
   toOrderTotal,
 } from '@/lib/orderPricing'
 
+import { createOrderSchema } from '@/lib/validation'
+
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   return NextResponse.json({ orders: [] })
 }
 
-function optionalString(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : null
-}
-
 export async function POST(request: NextRequest) {
+  if (await isRateLimited(request, 'checkout', { windowMs: 60 * 60 * 1000, maxHits: 5 })) {
+    return NextResponse.json(
+      { error: 'Trop de commandes soumises. Veuillez réessayer plus tard.' },
+      { status: 429 }
+    )
+  }
+
   try {
-    const body = await request.json() as Record<string, unknown>
+    const body = await request.json()
     assertNoClientPricingPayload(body)
 
-    const guestName = optionalString(body.guestName)
-    const guestEmail = optionalString(body.guestEmail)
-    const address = optionalString(body.address)
-    const wilaya = optionalString(body.wilaya)
-    const notes = optionalString(body.notes)
-    const normalizedPhone = optionalString(body.guestPhone)?.replace(/\s+/g, '') || ''
-
-    if (!normalizedPhone) {
-      return NextResponse.json({ error: 'Numero de telephone requis' }, { status: 400 })
+    const validated = createOrderSchema.safeParse(body)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
     }
 
-    if (!guestName || !address || !wilaya) {
-      return NextResponse.json({ error: 'Nom, adresse de livraison et wilaya requis' }, { status: 400 })
-    }
+    const { guestName, guestPhone, guestEmail, address, wilaya, notes, promoCode, items } = validated.data
+    const normalizedPhone = guestPhone.replace(/\s+/g, '')
 
-    const incomingItems = normalizeIncomingOrderItems(body.items)
+    const incomingItems = normalizeIncomingOrderItems(items)
     const order = await prisma.$transaction(async (tx) => {
       const { fullName, prenom, nom } = splitCustomerName(guestName)
       const { pricedItems, subtotal } = await priceOrderItems(tx, incomingItems)
       const deliveryFee = await getDeliveryFee(tx, subtotal)
       const promo = await calculatePromo(tx, {
-        promoCode: body.promoCode,
+        promoCode: promoCode || null,
         subtotal,
         items: pricedItems,
         clientPhone: normalizedPhone,

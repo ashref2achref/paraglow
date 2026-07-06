@@ -5,12 +5,11 @@ import { revalidateAllLocales } from '@/lib/revalidate'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     const product = await prisma.product.findUnique({
@@ -36,18 +35,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
+import { adminProductSchema } from '@/lib/validation'
+
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     const body = await request.json()
+    const validated = adminProductSchema.safeParse(body)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
+    }
+
     const {
-      code, barcode, name, slug, categoryId, brandId, description, descriptionAr, descriptionEn,
+      code, barcode, name, nameAr, nameEn, slug, categoryId, brandId, description, descriptionAr, descriptionEn,
       purchasePriceHT, margin, tva, sellingPriceTTC, sellingPriceHT, publicPrice,
       stock, stockMin, loyaltyPoints, imageUrl, images,
       remiseType, remiseValeur, remiseVisible,
       isActive, isFeatured, isBestSeller, isNew, isOnSale,
-    } = body
+    } = validated.data
 
     const existing = await prisma.product.findUnique({ where: { id } })
     if (!existing) {
@@ -65,13 +71,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Calculate changes
     const changes: Record<string, { before: any; after: any }> = {}
     const fieldsToCompare: (keyof typeof existing)[] = [
-      'code', 'barcode', 'name', 'categoryId', 'brandId', 'purchasePriceHT', 'margin',
+      'code', 'barcode', 'name', 'nameAr', 'nameEn', 'categoryId', 'brandId', 'purchasePriceHT', 'margin',
       'tva', 'sellingPriceTTC', 'stock', 'isActive', 'remiseType', 'remiseValeur', 'remiseVisible'
     ]
 
     fieldsToCompare.forEach((field) => {
       const prevValue = existing[field]
-      const newValue = body[field] as string | number | boolean | null | undefined
+      const newValue = validated.data[field as keyof typeof validated.data] as string | number | boolean | null | undefined
 
       // Handle simple conversion comparison
       let isChanged = false
@@ -93,60 +99,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     })
 
-    // Helper function to handle string/relation field updates safely
-    const getOptionalString = (value: any, defaultValue: string | null) => {
-      if (value === undefined || value === '') return defaultValue
-      return value
-    }
-
-    // Helper functions to handle number field updates safely
-    const getOptionalFloat = (value: any, defaultValue: number) => {
-      if (value === undefined || value === null || value === '') return defaultValue
-      const parsed = parseFloat(String(value))
-      return isNaN(parsed) ? defaultValue : parsed
-    }
-
-    const getOptionalInt = (value: any, defaultValue: number) => {
-      if (value === undefined || value === null || value === '') return defaultValue
-      const parsed = parseInt(String(value), 10)
-      return isNaN(parsed) ? defaultValue : parsed
-    }
-
     const updatedProduct = await prisma.product.update({
       where: { id },
       data: {
-        code: getOptionalString(code, existing.code) ?? undefined,
-        barcode: getOptionalString(barcode, existing.barcode),
-        name: getOptionalString(name, existing.name) ?? undefined,
-        slug: getOptionalString(slug, existing.slug) ?? undefined,
-        categoryId: getOptionalString(categoryId, existing.categoryId),
-        brandId: getOptionalString(brandId, existing.brandId),
-        description: getOptionalString(description, existing.description),
-        descriptionAr: getOptionalString(descriptionAr, existing.descriptionAr),
-        descriptionEn: getOptionalString(descriptionEn, existing.descriptionEn),
-        purchasePriceHT: getOptionalFloat(purchasePriceHT, existing.purchasePriceHT),
-        margin: getOptionalFloat(margin, existing.margin),
-        tva: getOptionalFloat(tva, existing.tva),
-        sellingPriceTTC: getOptionalFloat(sellingPriceTTC, existing.sellingPriceTTC),
-        sellingPriceHT: getOptionalFloat(sellingPriceHT, existing.sellingPriceHT),
-        publicPrice: (publicPrice === undefined || publicPrice === null || publicPrice === '') 
-          ? existing.publicPrice 
-          : (isNaN(parseFloat(String(publicPrice))) ? null : parseFloat(String(publicPrice))),
-        stock: getOptionalInt(stock, existing.stock),
-        stockMin: getOptionalInt(stockMin, existing.stockMin),
-        loyaltyPoints: getOptionalInt(loyaltyPoints, existing.loyaltyPoints),
-        imageUrl: getOptionalString(imageUrl, existing.imageUrl),
-        images: images !== undefined ? JSON.stringify(images || []) : existing.images,
-        remiseType: getOptionalString(remiseType, existing.remiseType) || 'AUCUNE',
-        remiseValeur: (remiseValeur === undefined || remiseValeur === null || remiseValeur === '') 
-          ? existing.remiseValeur 
-          : (isNaN(parseFloat(String(remiseValeur))) ? null : parseFloat(String(remiseValeur))),
-        remiseVisible: remiseVisible !== undefined ? (remiseVisible === true) : existing.remiseVisible,
-        isActive: isActive !== undefined ? (isActive === true) : existing.isActive,
-        isFeatured: isFeatured !== undefined ? (isFeatured === true) : existing.isFeatured,
-        isBestSeller: isBestSeller !== undefined ? (isBestSeller === true) : existing.isBestSeller,
-        isNew: isNew !== undefined ? (isNew === true) : existing.isNew,
-        isOnSale: isOnSale !== undefined ? (isOnSale === true) : existing.isOnSale,
+        code,
+        barcode: barcode || null,
+        name,
+        nameAr: nameAr || null,
+        nameEn: nameEn || null,
+        slug: slug || undefined,
+        categoryId: categoryId || null,
+        brandId: brandId || null,
+        description: description || null,
+        descriptionAr: descriptionAr || null,
+        descriptionEn: descriptionEn || null,
+        purchasePriceHT,
+        margin,
+        tva,
+        sellingPriceTTC,
+        sellingPriceHT,
+        publicPrice,
+        stock,
+        stockMin,
+        loyaltyPoints,
+        imageUrl: imageUrl || null,
+        images: typeof images === 'string' ? images : JSON.stringify(images || []),
+        remiseType,
+        remiseValeur,
+        remiseVisible,
+        isActive,
+        isFeatured,
+        isBestSeller,
+        isNew,
+        isOnSale,
       },
     })
 
@@ -173,12 +158,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ product: updatedProduct })
   } catch (error: any) {
     console.error('Admin product PUT error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur lors de la mise à jour' }, { status: 500 })
+    console.error('Product PUT error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la mise à jour du produit' }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     const existing = await prisma.product.findUnique({ where: { id } })

@@ -1,6 +1,14 @@
 import type { Prisma } from '@prisma/client'
 import { computeDisplayPrice } from './productPricing'
 
+/**
+ * NOTE SUR LES TARIFS B2B / CONVENTIONS PARTENAIRES :
+ * Actuellement, les réductions partenaires B2B (discountType et discountValue sur les objets Partner)
+ * ne sont pas automatiquement calculées ou appliquées lors du checkout en ligne (processus public).
+ * C'est un choix de conception assumé : les commandes B2B sous convention font l'objet d'un ajustement
+ * ou d'un traitement manuel par l'administrateur dans le back-office après soumission de la commande.
+ */
+
 export class OrderValidationError extends Error {
   status = 400
 }
@@ -108,6 +116,9 @@ export async function priceOrderItems(tx: Prisma.TransactionClient, items: Incom
     if (!product) {
       throw new OrderValidationError('Produit indisponible ou supprimé')
     }
+    if (product.stock <= 0) {
+      throw new OrderValidationError(`Le produit "${product.name}" est en rupture de stock`)
+    }
     const displayPrice = computeDisplayPrice(product)
     const unitPrice = displayPrice.finalPrice
     return {
@@ -131,7 +142,7 @@ export async function priceOrderItems(tx: Prisma.TransactionClient, items: Incom
 
 export async function getDeliveryFee(tx: Prisma.TransactionClient, subtotal: number) {
   let defaultDeliveryFee = 7
-  let freeDeliveryThreshold = 150
+  let freeDeliveryThreshold = 0
   let livraisonGratuiteActive = false
 
   const settingsRow = await tx.setting.findUnique({ where: { key: 'livraison' } })

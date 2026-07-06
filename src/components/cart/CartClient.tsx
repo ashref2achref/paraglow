@@ -181,7 +181,7 @@ export default function CartClient({ locale }: { locale: string }) {
 
   // Calculate totals
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const deliveryThreshold = settings?.livraison?.freeDeliveryThreshold ?? 150
+  const deliveryThreshold = settings?.livraison?.freeDeliveryThreshold ?? 0
   const isFreeDeliveryActive = !!settings?.livraison?.livraisonGratuiteActive
   const deliveryFee = (isFreeDeliveryActive && subtotal >= deliveryThreshold) ? 0 : (settings?.livraison?.defaultDeliveryFee ?? 7)
   const promoDiscount = appliedPromo ? appliedPromo.discount : 0
@@ -282,8 +282,7 @@ export default function CartClient({ locale }: { locale: string }) {
 
       toast.success(t('orderSuccess'))
       
-      // Clear cart store and redirect to confirmation
-      clearCart()
+      // Redirect to confirmation (cart will be cleared upon confirmation page mount)
       router.push(`/${locale}/commande/confirmation?orderNumber=${order.orderNumber}&wilaya=${encodeURIComponent(customerWilaya)}`)
     } catch (err: any) {
       console.warn('[Checkout Error]', err)
@@ -474,7 +473,7 @@ export default function CartClient({ locale }: { locale: string }) {
                 onClick={clearCart}
                 className="self-start text-xs font-bold text-[#c9a052] hover:text-[#d6b456] cursor-pointer underline font-sans"
               >
-                {locale === 'ar' ? 'تفريغ السلة' : 'Vider le panier'}
+                {t('clearCart')}
               </button>
 
               {/* Coordinates Form Card */}

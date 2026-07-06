@@ -5,12 +5,11 @@ import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) {
+  if (!(await checkAuth(request))) {
     return new NextResponse('Non autorisé', { status: 401 })
   }
 
@@ -102,6 +101,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Export GET error:', error)
-    return new NextResponse('Erreur lors de l\'exportation : ' + error.message, { status: 500 })
+    console.error('Export settings error:', error);
+    return new NextResponse('Erreur lors de l\'exportation des données', { status: 500 })
   }
 }

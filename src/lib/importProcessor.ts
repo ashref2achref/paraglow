@@ -53,9 +53,23 @@ export interface EmbeddedImageMatch {
 
 type ImportRow = Record<string, unknown>
 
+function sanitizeImportName(name: string): string {
+  if (!name) return ''
+  // 1. Remove control characters
+  let cleaned = name.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+  // 2. Remove HTML tags to prevent XSS
+  cleaned = cleaned.replace(/<[^>]*>/g, '')
+  // 3. Replace backslashes and problematic quotes
+  cleaned = cleaned.replace(/\\/g, '').replace(/["`]/g, "'")
+  // 4. Replace multiple spaces/tabs/newlines with a single space
+  cleaned = cleaned.replace(/\s+/g, ' ')
+  return cleaned.trim()
+}
+
 function normaliseCategoryName(name: string): string {
-  const trimmed = name.trim().toLowerCase()
-  if (!trimmed) return ''
+  const sanitized = sanitizeImportName(name)
+  if (!sanitized) return ''
+  const trimmed = sanitized.toLowerCase()
   return trimmed
     .split(/\s+/)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -63,7 +77,7 @@ function normaliseCategoryName(name: string): string {
 }
 
 function normaliseBrandName(name: string): string {
-  return name.trim()
+  return sanitizeImportName(name)
 }
 
 function generateSlug(text: string): string {
@@ -146,7 +160,7 @@ export async function processImportBatch(
     for (const row of rows) {
       if (mapping.category && row[mapping.category]) {
         const raw = String(row[mapping.category])
-        const norm = dbSettings.normaliseCategories ? normaliseCategoryName(raw) : raw.trim()
+        const norm = dbSettings.normaliseCategories ? normaliseCategoryName(raw) : sanitizeImportName(raw)
         if (norm) categoryNames.add(norm)
       }
       if (mapping.brand && row[mapping.brand]) {

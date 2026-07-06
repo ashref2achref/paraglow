@@ -17,6 +17,7 @@ export async function purgeOrphans() {
     where: {
       parentId: null,
       products: { none: {} },
+      children: { none: {} },
       createdAt: { lt: oneDayAgo }
     }
   })

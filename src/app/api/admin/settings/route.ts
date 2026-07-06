@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 // Get all settings
 export async function GET(request: NextRequest) {
-  if (!checkAdminAuth(request)) {
+  if (!(await checkAdminAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
 // Save settings or execute settings action
 export async function POST(request: NextRequest) {
-  if (!checkAdminAuth(request)) {
+  if (!(await checkAdminAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -164,7 +164,8 @@ export async function POST(request: NextRequest) {
       const parentCategories = await prisma.category.deleteMany({
         where: {
           parentId: null,
-          products: { none: {} }
+          products: { none: {} },
+          children: { none: {} }
         }
       })
       const brands = await prisma.brand.deleteMany({

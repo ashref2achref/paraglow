@@ -39,11 +39,20 @@ export default async function HomePage({ params }: PageProps) {
     ]),
   ])
 
+  // Clean products of sensitive commercial fields
+  const cleanFeaturedProducts = featuredProducts.map((p) => {
+    const clean: any = { ...p }
+    delete clean.purchasePriceHT
+    delete clean.margin
+    delete clean.sellingPriceHT
+    return clean
+  })
+
   return (
     <HomeClient
       locale={locale}
       categories={categories}
-      featuredProducts={featuredProducts}
+      featuredProducts={cleanFeaturedProducts}
       siteMedia={siteMedia}
     />
   )

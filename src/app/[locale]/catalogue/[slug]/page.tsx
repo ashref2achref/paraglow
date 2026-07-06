@@ -6,7 +6,7 @@ import { Leaf, ShieldCheck, ArrowLeft, HeartPulse } from 'lucide-react'
 import ProductActions from './ProductActions'
 import ProductImage from '@/components/ui/ProductImage'
 import { resolveProductImage } from '@/lib/productImage'
-import { computeDisplayPrice } from '@/lib/productPricing'
+import { computeDisplayPrice, formatPriceTND } from '@/lib/productPricing'
 
 interface PageProps {
   params: Promise<{ locale: string; slug: string }>
@@ -19,7 +19,7 @@ export default async function ProductPage({ params }: PageProps) {
   const isRTL = locale === 'ar'
 
   // Fetch product from SQLite database
-  const product = await prisma.product.findFirst({
+  const rawProduct = await prisma.product.findFirst({
     where: { slug, isActive: true, supprime: false },
     include: {
       brand: { select: { name: true, slug: true } },
@@ -27,13 +27,8 @@ export default async function ProductPage({ params }: PageProps) {
     },
   }).catch(() => null)
 
-  const formatTND = (price: number) => {
-    const formatted = price.toFixed(3).replace('.', ',')
-    return isRTL ? `${formatted} د.ت` : `${formatted} TND`
-  }
-
   // ─── 404/NOT FOUND VIEW ───
-  if (!product) {
+  if (!rawProduct) {
     return (
       <div className="w-full min-h-[75vh] bg-[#FBF6EC] flex items-center justify-center py-16 px-6" dir={isRTL ? 'rtl' : 'ltr'}>
         <Container className="max-w-md bg-white border border-[#c9a052]/15 p-8 rounded-3xl shadow-xs text-center flex flex-col items-center">
@@ -60,6 +55,14 @@ export default async function ProductPage({ params }: PageProps) {
       </div>
     )
   }
+
+  // Clean sensitive fields
+  const product: any = { ...rawProduct }
+  delete product.purchasePriceHT
+  delete product.margin
+  delete product.sellingPriceHT
+
+  const formatTND = (price: number) => formatPriceTND(price, locale)
 
   // Extract first image
   const image = resolveProductImage(product.images) || '/images/paraglow-favicon-512.png'
@@ -195,9 +198,9 @@ export default async function ProductPage({ params }: PageProps) {
             {/* Reassurance/Security Banner */}
             <div className="mt-8 p-4 bg-[#FBF6EC] rounded-xl border border-[#c9a052]/15 flex items-center gap-3 w-full">
               <ShieldCheck className="w-6 h-6 text-[#c9a052] flex-shrink-0" />
-              <div className="text-left">
-                <h4 className="text-xs font-bold text-[#153f2b] uppercase tracking-wider">Achat 100% Sécurisé</h4>
-                <p className="text-[11px] text-[#153f2b]/70 font-sans">Produits authentiques & Paiement à la livraison partout en Tunisie</p>
+              <div className="text-start">
+                <h4 className="text-xs font-bold text-[#153f2b] uppercase tracking-wider">{t('secureTitle')}</h4>
+                <p className="text-[11px] text-[#153f2b]/70 font-sans">{t('secureDesc')}</p>
               </div>
             </div>
 

@@ -7,9 +7,8 @@ import { extractEmbeddedImagesByRow, hasEmbeddedImages } from '@/lib/excelImageE
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 // POST: Importer le fichier.
 // - previewOnly=true: parses the file and returns headers/sample rows only (unchanged).
@@ -24,7 +23,7 @@ function checkAuth(request: NextRequest) {
 //   the function's lifetime for this exact purpose. This avoids ever blocking the HTTP
 //   request past Next.js's default route timeout, and gives honest progress feedback.
 export async function POST(request: NextRequest) {
-  if (!checkAuth(request)) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -172,6 +171,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, async: true, batchId: batch.id }, { status: 202 })
   } catch (error: any) {
     console.error('Import POST error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur lors de l\'import' }, { status: 500 })
+    console.error('Import POST error:', error);
+    return NextResponse.json({ error: 'Erreur lors de l\'importation des données' }, { status: 500 })
   }
 }

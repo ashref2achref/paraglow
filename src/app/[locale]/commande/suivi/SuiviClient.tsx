@@ -158,7 +158,7 @@ export default function SuiviClient({ locale }: SuiviClientProps) {
                 required
                 value={orderNumber}
                 onChange={(e) => setOrderNumber(e.target.value)}
-                placeholder={t('orderNumberPlaceholder') || 'Ex : PG-2026-12345'}
+                placeholder={t('orderNumberPlaceholder') || 'Ex : PG-B447FV'}
                 className="w-full bg-[#FBF6EC]/40 border border-[#c9a052]/20 focus:border-[#c9a052] focus:outline-none rounded-xl ps-10 pe-4 py-3 text-sm font-medium text-[#153f2b]"
               />
             </div>
@@ -228,7 +228,7 @@ export default function SuiviClient({ locale }: SuiviClientProps) {
                   >
                     <div className="flex flex-col gap-1">
                       <span className="font-serif text-base font-bold text-[#153f2b]">
-                        {locale === 'ar' ? `طلب بتاريخ ${itemDateStr}` : `Commande du ${itemDateStr}`}
+                        {t('orderFromDate', { date: itemDateStr })}
                       </span>
                       <div className="flex flex-wrap gap-2 items-center text-xs text-[#153f2b]/60">
                         <span>{formatPriceTND(orderItem.total, locale)}</span>
@@ -239,17 +239,7 @@ export default function SuiviClient({ locale }: SuiviClientProps) {
                           orderItem.status === 'CANCELLED' || orderItem.status === 'REFUNDED' ? 'text-rose-600' :
                           'text-[#c9a052]'
                         )}>
-                          {locale === 'ar' ? (
-                            orderItem.status === 'PENDING' ? 'في انتظار التأكيد' :
-                            orderItem.status === 'CONFIRMED' ? 'تم تأكيد الطلب' :
-                            orderItem.status === 'PREPARING' ? 'قيد التحضير' :
-                            orderItem.status === 'SHIPPED' ? 'تم الشحن' :
-                            orderItem.status === 'OUT_FOR_DELIVERY' ? 'خرج للتوصيل' :
-                            orderItem.status === 'DELIVERED' ? 'تم التوصيل' :
-                            orderItem.status === 'CANCELLED' ? 'ملغاة' : 'مستردة'
-                          ) : (
-                            orderItem.status
-                          )}
+                          {t(`status.${orderItem.status}`)}
                         </span>
                       </div>
                     </div>
@@ -275,7 +265,7 @@ export default function SuiviClient({ locale }: SuiviClientProps) {
                             <Truck className="w-4 h-4 text-[#c9a052] flex-shrink-0" />
                             <div className="text-xs text-[#153f2b]/80">
                               <span className="font-semibold block">
-                                {locale === 'ar' ? 'موعد التسليم المتوقع' : locale === 'en' ? 'Estimated delivery' : 'Livraison estimée'}
+                                {t('estimatedDelivery')}
                               </span>
                               <span className="mt-0.5 block">{getDeliveryEstimate(orderItem.wilaya, locale)}</span>
                             </div>

@@ -134,8 +134,14 @@ export async function GET(request: NextRequest) {
 
       const displayPrice = computeDisplayPrice(product)
 
+      // Exclude sensitive commercial fields from the client output
+      const cleanProduct: any = { ...rest }
+      delete cleanProduct.purchasePriceHT
+      delete cleanProduct.margin
+      delete cleanProduct.sellingPriceHT
+
       return {
-        ...rest,
+        ...cleanProduct,
         rating: avgRating,
         reviewsCount: approvedReviews.length,
         originalPrice: displayPrice.originalPrice,

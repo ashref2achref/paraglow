@@ -4,13 +4,12 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 // GET individual order details, client, items, tracking, and logs
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
 
   try {
@@ -40,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 // PUT: Update order fields (status, notes, confirmation status) and create logs
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
 
   try {
@@ -210,14 +209,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ order: updatedOrder })
   } catch (error: any) {
-    console.error('Admin order update error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur lors de la mise à jour' }, { status: 400 })
+    console.error('Admin order update error (PUT):', error)
+    return NextResponse.json({ error: 'Erreur lors de la mise à jour de la commande' }, { status: 500 })
   }
 }
 
 // DELETE: Handles putting order in trash, restoring, or permanent delete
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   const { searchParams } = request.nextUrl
   const mode = searchParams.get('mode') || 'trash' // 'trash', 'restore', 'permanent'
@@ -354,7 +353,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ error: 'Mode non supporté' }, { status: 400 })
   } catch (error: any) {
-    console.error('Admin order delete error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur serveur' }, { status: 500 })
+    console.error('Admin order delete error (DELETE):', error)
+    return NextResponse.json({ error: 'Erreur lors de la suppression de la commande' }, { status: 500 })
   }
 }

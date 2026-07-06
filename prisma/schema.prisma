@@ -149,7 +149,7 @@ model Order {
   supprime       Boolean         @default(false)
   supprimeLe     DateTime?
   clientId       String?
-  client         Client?         @relation(fields: [clientId], references: [id])
+  client         Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   address        Address?        @relation(fields: [addressId], references: [id])
@@ -416,4 +416,13 @@ model ImportBatch {
   completedAt          DateTime?
   createdAt            DateTime  @default(now())
   products             Product[]
+}
+
+model RateLimit {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  count     Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

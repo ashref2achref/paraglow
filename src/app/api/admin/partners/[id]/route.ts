@@ -4,12 +4,11 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     const partner = await prisma.partner.findUnique({
@@ -64,7 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     const body = await request.json()
@@ -104,12 +103,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ partner })
   } catch (error: any) {
     console.error('Partner PUT error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur mise à jour' }, { status: 500 })
+    console.error('Partner PUT error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la mise à jour du partenaire' }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     // Unlink clients
@@ -122,6 +122,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('Partner DELETE error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur suppression' }, { status: 500 })
+    console.error('Partner DELETE error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la suppression du partenaire' }, { status: 500 })
   }
 }

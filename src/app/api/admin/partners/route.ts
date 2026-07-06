@@ -4,12 +4,11 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   try {
     const partners = await prisma.partner.findMany({
       orderBy: { createdAt: 'desc' },
@@ -63,7 +62,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   try {
     const body = await request.json()
     const {
@@ -111,6 +110,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ partner }, { status: 201 })
   } catch (error: any) {
     console.error('Partner POST error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur serveur' }, { status: 500 })
+    console.error('Partner POST error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la création du partenaire' }, { status: 500 })
   }
 }

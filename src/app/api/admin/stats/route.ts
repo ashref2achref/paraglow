@@ -4,9 +4,8 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 const TUNISIAN_GOVERNORATES = [
   'Tunis', 'Ariana', 'Ben Arous', 'Manouba', 'Sousse', 'Sfax', 'Nabeul', 'Bizerte',
@@ -26,7 +25,7 @@ function parseGovernorate(addressStr: string | null | undefined): string {
 }
 
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -190,11 +189,11 @@ export async function GET(request: NextRequest) {
 
     // Count of new clients in periods
     const currentNewClients = await prisma.client.count({
-      where: { createdAt: { gte: currentStart, lte: currentEnd } }
+      where: { supprime: false, createdAt: { gte: currentStart, lte: currentEnd } }
     })
 
     const prevNewClients = await prisma.client.count({
-      where: { createdAt: { gte: prevStart, lte: prevEnd } }
+      where: { supprime: false, createdAt: { gte: prevStart, lte: prevEnd } }
     })
 
     // 3. Compute KPI Metrics
@@ -400,6 +399,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Stats GET error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur serveur' }, { status: 500 })
+    console.error('Stats calculation error:', error);
+    return NextResponse.json({ error: 'Erreur serveur lors du calcul des statistiques' }, { status: 500 })
   }
 }

@@ -64,7 +64,7 @@
       "titlePart3": "أنيقة وموثوقة",
       "p": "عناية، صحة، جمال ورفاهية مختارة بعناية فائقة، وتوصيل إلى جميع أنحاء تونس."
     },
-    "announcement": "توصيل مجاني من 200 دت | خدمة العملاء متوفرة",
+    "announcement": "توصيل مجاني من {threshold} د.ت | خدمة العملاء متوفرة",
     "categories": {
       "title": "فئاتنا",
       "viewAll": "عرض الكل"
@@ -228,6 +228,8 @@
     "brand": "العلامة",
     "category": "الفئة",
     "addedToCart": "تمت الإضافة !",
+    "secureTitle": "شراء آمن 100%",
+    "secureDesc": "منتجات أصلية والدفع عند الاستلام في جميع أنحاء تونس",
     "offerOfMonth": "عرض الشهر"
   },
   "cart": {
@@ -244,7 +246,8 @@
     "checkout": "تأكيد الطلب",
     "continueShopping": "مواصلة التسوق",
     "remove": "إزالة",
-    "freeDeliveryAt": "توصيل مجاني للطلبات فوق 200 دت",
+    "clearCart": "تفريغ السلة",
+    "freeDeliveryAt": "توصيل مجاني للطلبات فوق {threshold} د.ت",
     "items": "{count} منتج",
     "summary": "ملخص الطلبية",
     "deliveryFeeText": "يتم حسابه عند تأكيد الطلب",
@@ -303,6 +306,9 @@
   "orderConfirmation": {
     "title": "شكراً لثقتكم بنا",
     "subtitle": "تم تأكيد طلبيتكم رقم {number}.",
+    "successMessage": "تم تسجيل طلبيتك بنجاح. شكرا لثقتك بنا!",
+    "phoneValidationTitle": "تأكيد عبر الهاتف",
+    "phoneValidationDesc": "سيتصل بك فريقنا هاتفياً لتأكيد الشحن.",
     "emailSent": "تم إرسال بريد إلكتروني للتأكيد.",
     "estimatedDelivery": "موعد التسليم المتوقع",
     "trackOrder": "متابعة طلبيتي",
@@ -318,6 +324,7 @@
   "orderTracking": {
     "title": "تتبع الطلبية",
     "order": "الطلب",
+    "orderFromDate": "طلب بتاريخ {date}",
     "date": "التاريخ",
     "status": {
       "PENDING": "تم تأكيد الطلب",
@@ -326,7 +333,8 @@
       "SHIPPED": "تم الشحن",
       "OUT_FOR_DELIVERY": "مع الموزع للتوصيل",
       "DELIVERED": "تم التسليم بنجاح",
-      "CANCELLED": "ملغاة"
+      "CANCELLED": "ملغاة",
+      "REFUNDED": "مستردة"
     },
     "today": "اليوم",
     "between": "بين {start} و {end}",
@@ -335,7 +343,7 @@
     "subtitle": "تتبع حالة طلبك في الوقت الفعلي.",
     "orderNumberLabel": "رقم الطلب",
     "phoneLabel": "رقم الهاتف",
-    "orderNumberPlaceholder": "مثال: PG-2026-12345 (على إيصالك)",
+    "orderNumberPlaceholder": "مثال: PG-B447FV (على إيصالك)",
     "phonePlaceholder": "مثال: 29 613 681",
     "phoneHint": "الرقم المستخدم عند الطلب.",
     "trackButton": "تتبع طلبي",

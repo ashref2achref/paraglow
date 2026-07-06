@@ -4,13 +4,12 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 // GET: single promo code with its full order history, usage stats, and per-client breakdown
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
 
   try {
@@ -76,15 +75,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
   } catch (error: any) {
     console.error('Promo details GET error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur serveur' }, { status: 500 })
+    console.error('Promo GET error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la récupération du code promo' }, { status: 500 })
   }
 }
 
+import { adminPromoSchema } from '@/lib/validation'
+
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     const body = await request.json()
+    const validated = adminPromoSchema.safeParse(body)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
+    }
+
     const {
       code,
       type,
@@ -97,23 +104,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       startDate,
       endDate,
       isActive
-    } = body
+    } = validated.data
 
     const current = await prisma.promoCode.findUnique({ where: { id } })
     if (!current) return NextResponse.json({ error: 'Code promo introuvable' }, { status: 404 })
 
     const nextValues = {
-      code: code !== undefined ? code?.toUpperCase().trim() : undefined,
-      type: type || undefined,
-      value: value !== undefined ? parseFloat(String(value)) : undefined,
-      minOrder: minOrder !== undefined ? (minOrder ? parseFloat(String(minOrder)) : null) : undefined,
-      maxUses: maxUses !== undefined ? (maxUses ? parseInt(String(maxUses)) : null) : undefined,
-      maxUsesPerClient: maxUsesPerClient !== undefined ? (maxUsesPerClient ? parseInt(String(maxUsesPerClient)) : null) : undefined,
-      applicableCategories: applicableCategories !== undefined ? (applicableCategories ? String(applicableCategories) : null) : undefined,
-      applicableProducts: applicableProducts !== undefined ? (applicableProducts ? String(applicableProducts) : null) : undefined,
-      startDate: startDate !== undefined ? (startDate ? new Date(startDate) : null) : undefined,
-      endDate: endDate !== undefined ? (endDate ? new Date(endDate) : null) : undefined,
-      isActive: isActive !== undefined ? isActive : undefined,
+      code,
+      type,
+      value,
+      minOrder,
+      maxUses,
+      maxUsesPerClient,
+      applicableCategories,
+      applicableProducts,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+      isActive,
     }
 
     const changes: Record<string, { before: unknown; after: unknown }> = {}
@@ -146,14 +153,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ promo })
   } catch (error: any) {
     console.error('Promo update error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur mise à jour' }, { status: 500 })
+    console.error('Promo PUT error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la mise à jour du code promo' }, { status: 500 })
   }
 }
 
 // DELETE: soft-deletes the promo code (moves it to the corbeille). Permanent deletion
 // (which unlinks orders) only happens from the corbeille, via /api/admin/promo/trash.
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   const { id } = await params
   try {
     const promo = await prisma.promoCode.findUnique({ where: { id } })
@@ -176,6 +184,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('Promo delete error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur suppression' }, { status: 500 })
+    console.error('Promo DELETE error:', error);
+    return NextResponse.json({ error: 'Erreur lors de la suppression du code promo' }, { status: 500 })
   }
 }

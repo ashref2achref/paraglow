@@ -15,9 +15,8 @@ import { TUNISIAN_GOVERNORATES } from '@/lib/governorates'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 const ORDER_STATUSES: OrderStatus[] = [
   'PENDING',
@@ -42,7 +41,7 @@ function optionalString(value: unknown) {
 
 // GET orders with filters, pagination, sorting, trash, and alerts
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
 
   const { searchParams } = request.nextUrl
   const page = parsePositiveInt(searchParams.get('page'), 1, 100000)
@@ -191,7 +190,7 @@ export async function GET(request: NextRequest) {
 
 // POST: Admin creates a new internal order
 export async function POST(request: NextRequest) {
-  if (!checkAuth(request)) return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
 
   try {
     const body = await request.json() as Record<string, unknown>

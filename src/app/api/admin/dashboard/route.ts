@@ -4,12 +4,11 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function checkAuth(request: NextRequest) {
-  return checkAdminAuth(request)
-}
+async function checkAuth(request: NextRequest) {
+  return await checkAdminAuth(request);}
 
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -117,7 +116,7 @@ export async function GET(request: NextRequest) {
       }),
       // 5. Today's new clients
       prisma.client.count({
-        where: { createdAt: { gte: todayStart, lte: todayEnd } }
+        where: { supprime: false, createdAt: { gte: todayStart, lte: todayEnd } }
       }),
       // 6. Realtime pending orders
       prisma.order.count({
@@ -146,6 +145,7 @@ export async function GET(request: NextRequest) {
       // 9. Promo codes expiring in <= 7 days
       prisma.promoCode.count({
         where: {
+          supprime: false,
           isActive: true,
           endDate: {
             gte: now,
@@ -285,8 +285,7 @@ export async function GET(request: NextRequest) {
       evolution7Days
     })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Erreur serveur'
     console.error('Dashboard API GET error:', error)
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: 'Erreur lors de la récupération des données du tableau de bord' }, { status: 500 })
   }
 }

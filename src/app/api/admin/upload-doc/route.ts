@@ -9,9 +9,8 @@ export const dynamic = 'force-dynamic'
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
 const MAX_MULTIPART_OVERHEAD = 1024 * 1024
 
-function isAuthed(req: NextRequest): boolean {
-  return checkAdminAuth(req)
-}
+async function isAuthed(req: NextRequest): Promise<boolean> {
+  return await checkAdminAuth(req);}
 
 function contentLengthTooLarge(req: NextRequest, maxSize: number) {
   const raw = req.headers.get('content-length')
@@ -25,7 +24,7 @@ async function isRealPdf(file: File) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthed(req)) {
+  if (!(await isAuthed(req))) {
     return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
   }
 
@@ -59,14 +58,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Document trop volumineux. Maximum : 10 Mo' }, { status: 413 })
     }
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'documents')
+    const uploadDir = path.join(process.cwd(), 'private-uploads', 'documents')
     await fs.mkdir(uploadDir, { recursive: true })
 
     const safeName = `doc-${randomUUID()}.pdf`
     const filePath = path.join(uploadDir, safeName)
     await fs.writeFile(filePath, buffer)
 
-    return NextResponse.json({ success: true, url: `/uploads/documents/${safeName}`, name: safeName })
+    return NextResponse.json({ success: true, url: `/api/admin/documents/${safeName}`, name: safeName })
   } catch (error) {
     console.error('[Document Upload Error]', error)
     return NextResponse.json({ error: 'Erreur lors de l upload du document' }, { status: 500 })

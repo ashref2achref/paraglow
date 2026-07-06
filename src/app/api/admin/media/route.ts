@@ -17,9 +17,8 @@ const DEFAULT_MAX_VIDEO_SIZE_MB = 100
 const DEFAULT_ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const DEFAULT_ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm']
 
-function isAuthed(req: NextRequest): boolean {
-  return checkAdminAuth(req)
-}
+async function isAuthed(req: NextRequest): Promise<boolean> {
+  return await checkAdminAuth(req);}
 
 import { routing } from '@/i18n/routing'
 
@@ -75,7 +74,7 @@ async function getMediaSettings() {
 
 // GET — list all active media grouped by page
 export async function GET(req: NextRequest) {
-  if (!isAuthed(req)) {
+  if (!(await isAuthed(req))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -85,7 +84,7 @@ export async function GET(req: NextRequest) {
 
 // POST — upload file and create/replace SiteMedia for a slot
 export async function POST(req: NextRequest) {
-  if (!isAuthed(req)) {
+  if (!(await isAuthed(req))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -196,7 +195,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE — soft-delete the active media of a slot (moves it to the corbeille, file kept on disk)
 export async function DELETE(req: NextRequest) {
-  if (!isAuthed(req)) {
+  if (!(await isAuthed(req))) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
