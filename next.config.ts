@@ -19,7 +19,14 @@ const nextConfig: NextConfig = {
     'sharp',
   ],
   images: {
-    remotePatterns: [],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'qgawickfkqtvcvchgfep.supabase.co',
+        port: '',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
   },
   devIndicators: false,
   async headers() {
