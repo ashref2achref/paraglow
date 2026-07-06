@@ -93,37 +93,60 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     })
 
+    // Helper function to handle string/relation field updates safely
+    const getOptionalString = (value: any, defaultValue: string | null) => {
+      if (value === undefined || value === '') return defaultValue
+      return value
+    }
+
+    // Helper functions to handle number field updates safely
+    const getOptionalFloat = (value: any, defaultValue: number) => {
+      if (value === undefined || value === null || value === '') return defaultValue
+      const parsed = parseFloat(String(value))
+      return isNaN(parsed) ? defaultValue : parsed
+    }
+
+    const getOptionalInt = (value: any, defaultValue: number) => {
+      if (value === undefined || value === null || value === '') return defaultValue
+      const parsed = parseInt(String(value), 10)
+      return isNaN(parsed) ? defaultValue : parsed
+    }
+
     const updatedProduct = await prisma.product.update({
       where: { id },
       data: {
-        code,
-        barcode: barcode || null,
-        name,
-        slug,
-        categoryId: categoryId || null,
-        brandId: brandId || null,
-        description: description || null,
-        descriptionAr: descriptionAr || null,
-        descriptionEn: descriptionEn || null,
-        purchasePriceHT: parseFloat(purchasePriceHT) || 0,
-        margin: parseFloat(margin) || 0,
-        tva: parseFloat(tva) || 19,
-        sellingPriceTTC: parseFloat(sellingPriceTTC) || 0,
-        sellingPriceHT: parseFloat(sellingPriceHT) || 0,
-        publicPrice: publicPrice ? parseFloat(publicPrice) : null,
-        stock: parseInt(stock) || 0,
-        stockMin: parseInt(stockMin) || 5,
-        loyaltyPoints: parseInt(loyaltyPoints) || 0,
-        imageUrl: imageUrl || null,
-        images: JSON.stringify(images || []),
-        remiseType: remiseType || 'AUCUNE',
-        remiseValeur: remiseValeur ? parseFloat(remiseValeur) : null,
-        remiseVisible: remiseVisible || false,
-        isActive: isActive !== false,
-        isFeatured: isFeatured || false,
-        isBestSeller: isBestSeller || false,
-        isNew: isNew || false,
-        isOnSale: isOnSale || false,
+        code: getOptionalString(code, existing.code) ?? undefined,
+        barcode: getOptionalString(barcode, existing.barcode),
+        name: getOptionalString(name, existing.name) ?? undefined,
+        slug: getOptionalString(slug, existing.slug) ?? undefined,
+        categoryId: getOptionalString(categoryId, existing.categoryId),
+        brandId: getOptionalString(brandId, existing.brandId),
+        description: getOptionalString(description, existing.description),
+        descriptionAr: getOptionalString(descriptionAr, existing.descriptionAr),
+        descriptionEn: getOptionalString(descriptionEn, existing.descriptionEn),
+        purchasePriceHT: getOptionalFloat(purchasePriceHT, existing.purchasePriceHT),
+        margin: getOptionalFloat(margin, existing.margin),
+        tva: getOptionalFloat(tva, existing.tva),
+        sellingPriceTTC: getOptionalFloat(sellingPriceTTC, existing.sellingPriceTTC),
+        sellingPriceHT: getOptionalFloat(sellingPriceHT, existing.sellingPriceHT),
+        publicPrice: (publicPrice === undefined || publicPrice === null || publicPrice === '') 
+          ? existing.publicPrice 
+          : (isNaN(parseFloat(String(publicPrice))) ? null : parseFloat(String(publicPrice))),
+        stock: getOptionalInt(stock, existing.stock),
+        stockMin: getOptionalInt(stockMin, existing.stockMin),
+        loyaltyPoints: getOptionalInt(loyaltyPoints, existing.loyaltyPoints),
+        imageUrl: getOptionalString(imageUrl, existing.imageUrl),
+        images: images !== undefined ? JSON.stringify(images || []) : existing.images,
+        remiseType: getOptionalString(remiseType, existing.remiseType) || 'AUCUNE',
+        remiseValeur: (remiseValeur === undefined || remiseValeur === null || remiseValeur === '') 
+          ? existing.remiseValeur 
+          : (isNaN(parseFloat(String(remiseValeur))) ? null : parseFloat(String(remiseValeur))),
+        remiseVisible: remiseVisible !== undefined ? (remiseVisible === true) : existing.remiseVisible,
+        isActive: isActive !== undefined ? (isActive === true) : existing.isActive,
+        isFeatured: isFeatured !== undefined ? (isFeatured === true) : existing.isFeatured,
+        isBestSeller: isBestSeller !== undefined ? (isBestSeller === true) : existing.isBestSeller,
+        isNew: isNew !== undefined ? (isNew === true) : existing.isNew,
+        isOnSale: isOnSale !== undefined ? (isOnSale === true) : existing.isOnSale,
       },
     })
 

@@ -1,7 +1,12 @@
 import path from 'path'
-import fs from 'fs/promises'
 import sharp from 'sharp'
 import { randomUUID } from 'node:crypto'
+import { createClient as createSupabaseServiceClient } from '@supabase/supabase-js'
+
+const supabase = createSupabaseServiceClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 const MAX_IMAGE_SIZE = 8 * 1024 * 1024
 const MAX_DOWNLOAD_SIZE = 8 * 1024 * 1024
@@ -18,18 +23,30 @@ export async function saveProductImageBuffer(buffer: Buffer): Promise<string> {
     throw new Error('Image trop volumineuse (maximum 8 Mo)')
   }
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'products')
-  await fs.mkdir(uploadDir, { recursive: true })
+  const safeName = `products/product-${randomUUID()}.webp`
 
-  const safeName = `product-${randomUUID()}.webp`
-  const filePath = path.join(uploadDir, safeName)
-
-  await sharp(buffer)
+  const processedBuffer = await sharp(buffer)
     .resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 80 })
-    .toFile(filePath)
+    .toBuffer()
 
-  return `/uploads/products/${safeName}`
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('site-media')
+    .upload(safeName, processedBuffer, {
+      contentType: 'image/webp',
+      upsert: true
+    })
+
+  if (uploadError) {
+    console.error('[Supabase Storage Upload Error]', uploadError)
+    throw new Error("Erreur d'upload vers Supabase Storage")
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('site-media')
+    .getPublicUrl(safeName)
+
+  return publicUrl
 }
 
 /**
