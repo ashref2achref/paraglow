@@ -42,7 +42,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
   try {
     const body = await request.json()
-    const validated = adminProductSchema.safeParse(body)
+    const existing = await prisma.product.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Produit introuvable' }, { status: 404 })
+    }
+
+    const merged = { ...existing, ...body }
+    const validated = adminProductSchema.safeParse(merged)
     if (!validated.success) {
       return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
     }
@@ -54,11 +60,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       remiseType, remiseValeur, remiseVisible,
       isActive, isFeatured, isBestSeller, isNew, isOnSale,
     } = validated.data
-
-    const existing = await prisma.product.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Produit introuvable' }, { status: 404 })
-    }
 
     // Check code uniqueness if changed
     if (code && code !== existing.code) {

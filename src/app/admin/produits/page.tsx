@@ -292,6 +292,9 @@ export default function ProduitsPage() {
         setProducts((prods) =>
           prods.map((p) => (p.id === id ? { ...p, isActive: !currentStatus } : p))
         )
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || 'Erreur lors de la modification')
       }
     } catch {
       toast.error('Erreur lors de la modification')
@@ -845,7 +848,10 @@ export default function ProduitsPage() {
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
-                          onClick={() => handleToggleActive(prod.id, prod.isActive)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleToggleActive(prod.id, prod.isActive)
+                          }}
                           style={{
                             width: '36px', height: '18px', borderRadius: '9px', border: 'none',
                             background: prod.isActive ? '#1b3a1e' : '#d5cfc0', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
@@ -855,7 +861,7 @@ export default function ProduitsPage() {
                           <span style={{
                             position: 'absolute', top: '2px', left: prod.isActive ? '20px' : '2px',
                             width: '14px', height: '14px', borderRadius: '50%', background: '#fff',
-                            transition: 'left 0.2s', display: 'block',
+                            transition: 'left 0.2s', display: 'block', pointerEvents: 'none',
                           }} />
                         </button>
                       </td>
@@ -966,19 +972,31 @@ export default function ProduitsPage() {
                       <span className="text-[9px] text-[#9b8f7a] block mb-0.5">Statut</span>
                       <button
                         type="button"
-                        onClick={() => handleToggleActive(prod.id, prod.isActive)}
-                        style={{
-                          width: '36px', height: '18px', borderRadius: '9px', border: 'none',
-                          background: prod.isActive ? '#1b3a1e' : '#d5cfc0', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleToggleActive(prod.id, prod.isActive)
                         }}
+                        onTouchEnd={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          handleToggleActive(prod.id, prod.isActive)
+                        }}
+                        className="p-3 -m-3 inline-flex items-center justify-center cursor-pointer bg-transparent border-none select-none focus:outline-none"
                       >
                         <span
                           style={{
-                            position: 'absolute', top: '2px', left: prod.isActive ? '20px' : '2px',
-                            width: '14px', height: '14px', borderRadius: '50%', background: '#fff',
-                            transition: 'left 0.2s',
+                            width: '36px', height: '18px', borderRadius: '9px',
+                            background: prod.isActive ? '#1b3a1e' : '#d5cfc0', position: 'relative', transition: 'background 0.2s', display: 'block',
                           }}
-                        />
+                        >
+                          <span
+                            style={{
+                              position: 'absolute', top: '2px', left: prod.isActive ? '20px' : '2px',
+                              width: '14px', height: '14px', borderRadius: '50%', background: '#fff',
+                              transition: 'left 0.2s', display: 'block', pointerEvents: 'none',
+                            }}
+                          />
+                        </span>
                       </button>
                     </div>
                   </div>
