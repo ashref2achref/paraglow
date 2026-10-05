@@ -44,7 +44,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
   return (
     <>
       <NextIntlClientProvider messages={messages}>
-        <div className="min-h-screen flex flex-col bg-white pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-0" dir={dir}>
+        <div className="min-h-screen flex flex-col bg-white" dir={dir}>
           <StoreHydrator />
           <Header locale={locale} />
           <main className="flex-1">

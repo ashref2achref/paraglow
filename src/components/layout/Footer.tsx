@@ -105,7 +105,7 @@ export default async function Footer({ locale = 'fr' }: { locale?: string }) {
   const hoursVal = locale === 'ar' ? "7 أيام/7 · 09:30 - 22:00" : locale === 'en' ? "7d/7 · 09:30 AM - 10:00 PM" : boutique.hours
 
   return (
-    <footer className="w-full bg-[#FBF6EC] border-t border-[#c9a052]/10 relative pt-8 md:pt-16 pb-20 md:pb-0 overflow-hidden">
+    <footer className="w-full bg-[#FBF6EC] border-t border-[#c9a052]/10 relative pt-8 md:pt-16 pb-0 overflow-hidden">
       {/* ── Top Wavy Gold Separator ── */}
       <div className="absolute top-0 left-0 w-full overflow-hidden leading-[0] h-8 pointer-events-none">
         <svg 
@@ -291,7 +291,7 @@ export default async function Footer({ locale = 'fr' }: { locale?: string }) {
       </Container>
 
       {/* Decorative leaf/branch SVG ornaments in bottom corners */}
-      <div className="absolute bottom-6 left-0 pointer-events-none select-none opacity-20 z-0">
+      <div className="hidden md:block absolute bottom-6 left-0 pointer-events-none select-none opacity-20 z-0">
         <svg className="w-48 h-48 text-[#8a9e6e]" viewBox="0 0 200 200" fill="currentColor">
           <path d="M 0,200 C 40,160 80,140 120,130 C 100,150 60,170 0,200 Z" opacity="0.6"/>
           <path d="M 30,170 C 20,140 40,130 50,150 C 45,165 40,170 30,170 Z" />
@@ -302,7 +302,7 @@ export default async function Footer({ locale = 'fr' }: { locale?: string }) {
           <path d="M 15,185 C 5,160 20,155 25,170 C 22,180 20,185 15,185 Z" />
         </svg>
       </div>
-      <div className="absolute bottom-6 right-0 pointer-events-none select-none opacity-20 z-0">
+      <div className="hidden md:block absolute bottom-6 right-0 pointer-events-none select-none opacity-20 z-0">
         <svg className="w-48 h-48 text-[#8a9e6e] scale-x-[-1]" viewBox="0 0 200 200" fill="currentColor">
           <path d="M 0,200 C 40,160 80,140 120,130 C 100,150 60,170 0,200 Z" opacity="0.6"/>
           <path d="M 30,170 C 20,140 40,130 50,150 C 45,165 40,170 30,170 Z" />
@@ -315,7 +315,7 @@ export default async function Footer({ locale = 'fr' }: { locale?: string }) {
       </div>
 
       {/* Solid Forest Green Band at the bottom */}
-      <div className="w-full bg-[#153f2b] h-8 md:h-10 relative z-10" />
+      <div className="w-full bg-[#153f2b] h-[calc(2rem+68px+env(safe-area-inset-bottom,0px))] md:h-10 relative z-10" aria-hidden="true" />
     </footer>
   )
 }

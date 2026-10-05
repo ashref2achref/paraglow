@@ -69,7 +69,7 @@ export default function BottomNav({ locale }: BottomNavProps) {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#FBF6EC] border-t border-[#c9a052]/15 md:hidden shadow-[0_-8px_24px_rgba(21,63,43,0.05)]">
       <div 
-        className="relative h-[68px] flex items-center justify-around px-1.5 pb-[env(safe-area-inset-bottom,0px)]"
+        className="relative h-[calc(68px+env(safe-area-inset-bottom,0px))] flex items-center justify-around px-1.5 pb-[env(safe-area-inset-bottom,0px)]"
         style={{ direction: 'ltr' }}
       >
         {items.map((item, index) => {
