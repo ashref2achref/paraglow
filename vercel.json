@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/supabase-keep-alive/morning",
+      "schedule": "17 5 * * *"
+    },
+    {
+      "path": "/api/cron/supabase-keep-alive/afternoon",
+      "schedule": "17 13 * * *"
+    },
+    {
+      "path": "/api/cron/supabase-keep-alive/evening",
+      "schedule": "17 21 * * *"
+    }
+  ]
+}
