@@ -1,44 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { normalizeTunisianPhone } from '@/lib/phone'
+import { isRateLimited } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
-// Basic in-memory per-IP rate limit: 10 requests / minute -> 429.
-const WINDOW_MS = 60_000
-const MAX_HITS = 10
-const hits = new Map<string, { count: number; resetAt: number }>()
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now()
-  const entry = hits.get(ip)
-  if (!entry || now > entry.resetAt) {
-    hits.set(ip, { count: 1, resetAt: now + WINDOW_MS })
-    return false
-  }
-  entry.count += 1
-  return entry.count > MAX_HITS
-}
-
-function clientIp(request: NextRequest): string {
-  const fwd = request.headers.get('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0].trim()
-  return request.headers.get('x-real-ip') || 'unknown'
-}
-
 export async function POST(request: NextRequest) {
-  const ip = clientIp(request)
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
-      { error: 'RATE_LIMIT' },
-      { status: 429 }
-    )
+  if (await isRateLimited(request, 'order-track', { windowMs: 60_000, maxHits: 10 })) {
+    return NextResponse.json({ error: 'RATE_LIMIT' }, { status: 429 })
   }
 
-  // Generic error used for every "not found / mismatch" case so we never
-  // disclose whether an order number exists.
-  const notFound = () =>
-    NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  const notFound = () => NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
 
   let body: { phone?: string; orderNumber?: string }
   try {
@@ -49,24 +21,16 @@ export async function POST(request: NextRequest) {
 
   const phoneInput = normalizeTunisianPhone(body.phone)
   const orderNumber = String(body.orderNumber || '').trim().toUpperCase()
-
-  if (phoneInput.length !== 8 || !orderNumber) {
-    return notFound()
-  }
+  if (phoneInput.length !== 8 || !orderNumber) return notFound()
 
   try {
     const orders = await prisma.order.findMany({
       where: {
-        orderNumber: orderNumber,
+        orderNumber,
         supprime: false,
-        OR: [
-          { guestPhone: phoneInput },
-          { client: { phone: phoneInput } }
-        ]
+        OR: [{ guestPhone: phoneInput }, { client: { phone: phoneInput } }],
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
       include: {
         items: true,
         address: true,
@@ -74,7 +38,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    if (!orders || orders.length === 0) return notFound()
+    if (orders.length === 0) return notFound()
 
     return NextResponse.json({
       orders: orders.map((order) => {
@@ -88,12 +52,12 @@ export async function POST(request: NextRequest) {
           status: order.status,
           createdAt: order.createdAt,
           customerName,
-          items: order.items.map((it) => ({
-            productName: it.productName,
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-            total: it.total,
-            image: it.image,
+          items: order.items.map((item) => ({
+            productName: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.total,
+            image: item.image,
           })),
           subtotal: order.subtotal,
           deliveryFee: order.deliveryFee,
@@ -102,8 +66,10 @@ export async function POST(request: NextRequest) {
           promoDiscount: order.promoDiscount,
           total: order.total,
           wilaya: order.wilaya,
-          address: order.address
-            ? {
+          address: order.deliveryAddress
+            ? { address: order.deliveryAddress }
+            : order.address
+              ? {
                 firstName: order.address.firstName,
                 lastName: order.address.lastName,
                 address: order.address.address,
@@ -115,7 +81,7 @@ export async function POST(request: NextRequest) {
               ? { address: order.client.adresse }
               : null,
         }
-      })
+      }),
     })
   } catch (error) {
     console.error('Order track API error:', error)

@@ -112,7 +112,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     return NextResponse.json({ customer: updated })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Admin client PUT error:', error)
     console.error('Customer PUT error:', error);
     return NextResponse.json({ error: 'Erreur lors de la mise à jour du client' }, { status: 500 })
@@ -148,7 +148,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     })
 
     return NextResponse.json({ success: true, message: 'Client mis à la corbeille' })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Admin client DELETE error:', error)
     console.error('Customer DELETE error:', error);
     return NextResponse.json({ error: 'Erreur lors de la suppression du client' }, { status: 500 })

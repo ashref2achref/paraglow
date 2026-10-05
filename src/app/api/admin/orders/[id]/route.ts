@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
+import {
+  OrderValidationError,
+  consumesPromoUsage,
+  decrementPromoUsage,
+  decrementStock,
+  incrementPromoUsage,
+  isStockReservedStatus,
+} from '@/lib/orderPricing'
+import type { OrderStatus, Prisma } from '@prisma/client'
+
+const ORDER_STATUSES: OrderStatus[] = [
+  'PENDING',
+  'CONFIRMED',
+  'PREPARING',
+  'SHIPPED',
+  'OUT_FOR_DELIVERY',
+  'DELIVERED',
+  'CANCELLED',
+  'REFUNDED',
+]
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +64,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const body = await request.json()
-    const { status, notes, confiremee, force, clientNom, clientPrenom, clientPhone, clientAdresse } = body
+    const { status, notes, confiremee, clientNom, clientPrenom, clientPhone, clientAdresse } = body
 
     const currentOrder = await prisma.order.findUnique({
       where: { id },
@@ -53,22 +73,30 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!currentOrder) return NextResponse.json({ error: 'Commande introuvable' }, { status: 404 })
 
+    if (currentOrder.supprime) {
+      return NextResponse.json({ error: 'Restaurez la commande avant de la modifier' }, { status: 409 })
+    }
+
+    const requestedStatus = typeof status === 'string' && ORDER_STATUSES.includes(status as OrderStatus)
+      ? status as OrderStatus
+      : null
+
+    if (status !== undefined && !requestedStatus) {
+      return NextResponse.json({ error: 'Statut de commande invalide' }, { status: 400 })
+    }
+
+    let targetStatus: OrderStatus = requestedStatus ?? currentOrder.status
+
+    // Legacy UI confirmation toggle is translated to a real status transition so
+    // status, stock reservation and confirmee can never diverge.
+    if (confiremee !== undefined && !requestedStatus) {
+      if (confiremee === true && !isStockReservedStatus(targetStatus)) targetStatus = 'CONFIRMED'
+      if (confiremee === false && isStockReservedStatus(targetStatus)) targetStatus = 'PENDING'
+    }
+
     const wasConfirmed = currentOrder.confirmee
-    let willBeConfirmed = currentOrder.confirmee
-
-    // Auto-confirm based on status update
-    if (status && status !== currentOrder.status) {
-      if (['CONFIRMED', 'PREPARING', 'SHIPPED', 'DELIVERED'].includes(status)) {
-        willBeConfirmed = true
-      } else {
-        willBeConfirmed = false
-      }
-    }
-
-    // Explicit confirmation toggle
-    if (confiremee !== undefined) {
-      willBeConfirmed = confiremee
-    }
+    const willBeConfirmed = isStockReservedStatus(targetStatus)
+    const statusChanged = targetStatus !== currentOrder.status
 
     // Handle stock insufficiency warning before starting transaction (Optimized: 1 query instead of N)
     if (!wasConfirmed && willBeConfirmed) {
@@ -90,7 +118,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
-      if (insufficientProducts.length > 0 && !force) {
+      if (insufficientProducts.length > 0) {
         return NextResponse.json({
           error: 'INSUFFICIENT_STOCK',
           message: 'Stock insuffisant pour certains produits.',
@@ -99,15 +127,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    const updateData: any = {}
+    const updateData: Prisma.OrderUpdateInput = {}
     const logDetails: string[] = []
-    const logChanges: any = {}
+    const logChanges: Record<string, { before: unknown; after: unknown }> = {}
 
     // Track status change
-    if (status && status !== currentOrder.status) {
-      updateData.status = status
-      logDetails.push(`Statut modifié de ${currentOrder.status} à ${status}`)
-      logChanges.status = { before: currentOrder.status, after: status }
+    if (statusChanged) {
+      updateData.status = targetStatus
+      logDetails.push(`Statut modifié de ${currentOrder.status} à ${targetStatus}`)
+      logChanges.status = { before: currentOrder.status, after: targetStatus }
     }
 
     // Track confirmation state
@@ -124,22 +152,30 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       logChanges.notes = { before: currentOrder.notes, after: notes }
     }
 
+    if (clientAdresse !== undefined && clientAdresse !== currentOrder.deliveryAddress) {
+      updateData.deliveryAddress = clientAdresse
+      logDetails.push('Adresse de livraison mise à jour')
+      logChanges.deliveryAddress = { before: currentOrder.deliveryAddress, after: clientAdresse }
+    }
+
     const updatedOrder = await prisma.$transaction(async (tx) => {
+      const hadPromoUsage = consumesPromoUsage(currentOrder.status, currentOrder.supprime)
+      const willHavePromoUsage = consumesPromoUsage(targetStatus, false)
+
+      if (currentOrder.promoCodeId && hadPromoUsage !== willHavePromoUsage) {
+        if (willHavePromoUsage) await incrementPromoUsage(tx, currentOrder.promoCodeId)
+        else await decrementPromoUsage(tx, currentOrder.promoCodeId)
+      }
+
       // Perform stock adjustments (Optimized: batch log writes)
       if (!wasConfirmed && willBeConfirmed) {
-        const logEntries = []
-        for (const item of currentOrder.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { decrement: item.quantity } }
-          })
-          logEntries.push({
-            action: 'MODIFICATION',
-            details: `Stock décrémenté de -${item.quantity} (commande ${currentOrder.orderNumber} confirmée)`,
-            productId: item.productId,
-            productName: item.productName
-          })
-        }
+        await decrementStock(tx, currentOrder.items)
+        const logEntries = currentOrder.items.map((item) => ({
+          action: 'MODIFICATION',
+          details: `Stock décrémenté de -${item.quantity} (commande ${currentOrder.orderNumber} confirmée)`,
+          productId: item.productId,
+          productName: item.productName
+        }))
         if (logEntries.length > 0) {
           await tx.productLog.createMany({ data: logEntries })
         }
@@ -184,12 +220,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Write OrderTracking and OrderLog if changes occurred
       if (logDetails.length > 0) {
-        if (status && status !== currentOrder.status) {
+        if (statusChanged) {
           await tx.orderTracking.create({
             data: {
               orderId: id,
-              status,
-              message: `Statut de la commande modifié pour: ${status}`,
+              status: targetStatus,
+              message: `Statut de la commande modifié pour: ${targetStatus}`,
             }
           })
         }
@@ -197,7 +233,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         await tx.orderLog.create({
           data: {
             orderId: id,
-            action: status && status !== currentOrder.status ? 'STATUT' : 'MODIFICATION',
+            action: statusChanged ? 'STATUT' : 'MODIFICATION',
             details: logDetails.join(', '),
             changes: JSON.stringify(logChanges),
           }
@@ -208,7 +244,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
 
     return NextResponse.json({ order: updatedOrder })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof OrderValidationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error('Admin order update error (PUT):', error)
     return NextResponse.json({ error: 'Erreur lors de la mise à jour de la commande' }, { status: 500 })
   }
@@ -239,6 +278,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
           where: { id },
           data: { supprime: true, supprimeLe: new Date(), confirmee: false }
         })
+
+        if (order.promoCodeId && consumesPromoUsage(order.status, false)) {
+          await decrementPromoUsage(tx, order.promoCodeId)
+        }
 
         // Restore stock for all items (if it was confirmed) (Optimized: batch log writes)
         if (order.confirmee) {
@@ -278,7 +321,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       try {
         await prisma.$transaction(async (tx) => {
           // If the order status was a confirmed status, it would try to confirm it again on restore
-          const shouldBeConfirmed = ['CONFIRMED', 'PREPARING', 'SHIPPED', 'DELIVERED'].includes(order.status)
+          const shouldBeConfirmed = isStockReservedStatus(order.status)
           if (shouldBeConfirmed) {
             // Verify stock availability (Optimized: 1 query instead of N)
             const productIds = order.items.map(item => item.productId)
@@ -296,23 +339,21 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
               }
             }
 
-            // Decrement stock (Optimized: batch log writes)
-            const logEntries = []
-            for (const item of order.items) {
-              await tx.product.update({
-                where: { id: item.productId },
-                data: { stock: { decrement: item.quantity } }
-              })
-              logEntries.push({
-                action: 'MODIFICATION',
-                details: `Stock décrémenté de -${item.quantity} (commande ${order.orderNumber} restaurée de la corbeille)`,
-                productId: item.productId,
-                productName: item.productName
-              })
-            }
+            // Decrement atomically inside the transaction to prevent concurrent overselling.
+            await decrementStock(tx, order.items)
+            const logEntries = order.items.map((item) => ({
+              action: 'MODIFICATION',
+              details: `Stock décrémenté de -${item.quantity} (commande ${order.orderNumber} restaurée de la corbeille)`,
+              productId: item.productId,
+              productName: item.productName
+            }))
             if (logEntries.length > 0) {
               await tx.productLog.createMany({ data: logEntries })
             }
+          }
+
+          if (order.promoCodeId && consumesPromoUsage(order.status, false)) {
+            await incrementPromoUsage(tx, order.promoCodeId)
           }
 
           // Restore order
@@ -331,10 +372,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
         })
 
         return NextResponse.json({ success: true, message: 'Commande restaurée avec succès' })
-      } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 400 })
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Erreur lors de la restauration de la commande'
+        return NextResponse.json({ error: message }, { status: 400 })
       }
     } else if (mode === 'permanent') {
+      if (!order.supprime) {
+        return NextResponse.json({ error: 'La suppression définitive est autorisée uniquement depuis la corbeille' }, { status: 400 })
+      }
+
       await prisma.$transaction(async (tx) => {
         // Log order deletion
         await tx.orderLog.create({
@@ -352,7 +398,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     return NextResponse.json({ error: 'Mode non supporté' }, { status: 400 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Admin order delete error (DELETE):', error)
     return NextResponse.json({ error: 'Erreur lors de la suppression de la commande' }, { status: 500 })
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
 import { revalidateAllLocales } from '@/lib/revalidate'
+import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
   } catch { /* ignore */ }
 
-  const where: Record<string, any> = {
+  const where: Prisma.ProductWhereInput = {
     supprime: false, // Exclude soft-deleted items by default
   }
 
@@ -84,17 +85,25 @@ export async function GET(request: NextRequest) {
 
   // Image filter
   if (image === 'with') {
-    where.OR = [
-      { imageUrl: { not: null, notIn: [''] } },
-      { NOT: [
-        { images: null },
-        { images: '[]' },
-        { images: '' }
-      ]}
+    where.AND = [
+      {
+        OR: [
+          { imageUrl: { not: null, notIn: [''] } },
+          {
+            NOT: [
+              { images: null },
+              { images: '[]' },
+              { images: '' },
+            ],
+          },
+        ],
+      },
     ]
   } else if (image === 'without') {
-    where.imageUrl = { in: [null, ''] }
-    where.images = { in: [null, '[]', '', 'null'] }
+    where.AND = [
+      { OR: [{ imageUrl: null }, { imageUrl: '' }] },
+      { OR: [{ images: null }, { images: { in: ['[]', '', 'null'] } }] },
+    ]
   }
 
   // Discount filter
@@ -231,7 +240,7 @@ export async function POST(request: NextRequest) {
     } catch { /* ignore */ }
 
     return NextResponse.json({ product }, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Admin products POST error:', error)
     console.error('Product POST error:', error);
     return NextResponse.json({ error: 'Erreur lors de la création du produit' }, { status: 500 })

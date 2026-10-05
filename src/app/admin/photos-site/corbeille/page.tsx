@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   Trash2,
@@ -38,11 +38,7 @@ export default function PhotosSiteCorbeillePage() {
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    loadTrash()
-  }, [])
-
-  const loadTrash = async () => {
+  const loadTrash = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch('/api/admin/media/trash')
@@ -53,7 +49,14 @@ export default function PhotosSiteCorbeillePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadTrash()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadTrash])
 
   const handleRestore = async (ids: string[]) => {
     try {
@@ -158,7 +161,7 @@ export default function PhotosSiteCorbeillePage() {
               {media.length} média(s) supprimé(s)
             </span>
           </h1>
-          <p className="text-sm text-[#6b5f4f]/80 mt-1">Restaurez un média (remplace l'actuel du slot) ou supprimez-le définitivement.</p>
+          <p className="text-sm text-[#6b5f4f]/80 mt-1">Restaurez un média (remplace l&apos;actuel du slot) ou supprimez-le définitivement.</p>
         </div>
 
         {media.length > 0 && (
@@ -184,7 +187,7 @@ export default function PhotosSiteCorbeillePage() {
             </div>
             <h3 className="font-serif text-xl font-bold text-[#153f2b] mb-1">La corbeille est vide</h3>
             <p className="text-sm text-[#6b5f4f]/80 max-w-sm mb-6">
-              Il n'y a aucun média en attente de suppression définitive.
+              Il n&apos;y a aucun média en attente de suppression définitive.
             </p>
             <Link href="/admin/photos-site" className="px-4 py-2 bg-[#1b3a1e] hover:bg-[#c9a052] text-white text-xs font-semibold rounded-lg shadow-sm transition-all">
               Retourner aux photos du site
@@ -225,7 +228,6 @@ export default function PhotosSiteCorbeillePage() {
                         {m.type === 'VIDEO' ? (
                           <video src={m.url} muted className="object-cover w-full h-full" />
                         ) : m.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={m.url} alt={m.alt || ''} className="object-cover w-full h-full" />
                         ) : (
                           <ImageIcon className="w-5 h-5 text-[#eadfca]" />

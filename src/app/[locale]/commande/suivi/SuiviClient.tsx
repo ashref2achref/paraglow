@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { Leaf, Package, Search, Phone, MessageSquare, MapPin, AlertTriangle, ChevronDown, ChevronUp, Truck } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
@@ -53,7 +52,6 @@ interface SuiviClientProps {
 
 export default function SuiviClient({ locale }: SuiviClientProps) {
   const t = useTranslations('orderTracking')
-  const searchParams = useSearchParams()
   const isRTL = locale === 'ar'
 
   const settings = useSettingsStore((s) => s.settings)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import dynamicImport from 'next/dynamic'
 import {
@@ -16,7 +16,41 @@ import {
 import { toast } from 'sonner'
 import ProductImage from '@/components/ui/ProductImage'
 import Modal from '@/components/ui/Modal'
-import { exportToExcel } from '@/lib/excelExport'
+
+interface StatValue {
+  val: number
+  var: number
+  excludedProducts?: number
+}
+
+interface StatsData {
+  kpi: {
+    ca: StatValue
+    profit: StatValue & { excludedProducts: number }
+    orders: StatValue
+    quantity: StatValue
+    basket: StatValue
+    newClients: StatValue
+    monthlyTarget: { target: number; progress: number } | null
+  }
+  ordersByStatus: Array<{ status: string; count: number; percent: number }>
+  evolution: Array<{ date: string; revenue: number }>
+  topProducts: Array<{ id: string; code: string; name: string; qty: number; ca: number; profit: number; image: string | null }>
+  topCategories: Array<{ category: string; ca: number }>
+  topClients: Array<{ id: string; nom: string; phone: string; count: number; total: number }>
+  geographic: Array<{ region: string; count: number; ca: number }>
+  sources: Array<{ source: string; count: number; ca: number }>
+}
+
+interface PartnerStatsRow {
+  name: string
+  type: string
+  discountValue: number
+  discountType: string
+  clientsCount: number
+  ordersCount: number
+  totalSpent: number
+}
 
 // Dynamic imports for recharts components to prevent SSR issues and keep loading light
 const ResponsiveContainer = dynamicImport(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false })
@@ -46,10 +80,10 @@ export default function StatistiquesPage() {
   })
 
   // Data States
-  const [statsData, setStatsData] = useState<any>(null)
+  const [statsData, setStatsData] = useState<StatsData | null>(null)
 
   // Fetch stats from server
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setLoading(true)
     try {
       const q = new URLSearchParams({
@@ -69,10 +103,10 @@ export default function StatistiquesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [period, customFrom, customTo])
 
   // Load configuration settings
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/settings')
       const data = await res.json()
@@ -82,7 +116,7 @@ export default function StatistiquesPage() {
         setPeriod(parsed.defaultPeriod || '30days')
       }
     } catch {}
-  }
+  }, [])
 
   // Save settings
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -117,12 +151,14 @@ export default function StatistiquesPage() {
 
   // Trigger loads
   useEffect(() => {
-    loadSettings()
-  }, [])
+    const timer = window.setTimeout(() => void loadSettings(), 0)
+    return () => window.clearTimeout(timer)
+  }, [loadSettings])
 
   useEffect(() => {
-    fetchStats()
-  }, [period, customFrom, customTo])
+    const timer = window.setTimeout(() => void fetchStats(), 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchStats])
 
   // Export financial report to Excel with multiple sheets
   const handleExportExcel = async () => {
@@ -135,7 +171,7 @@ export default function StatistiquesPage() {
       const partnersList = partnerData.partners || []
 
       // Prepare Sheet 1: CA & Evolution
-      const evolutionRows = statsData.evolution.map((e: any) => ({
+      const evolutionRows: Array<{ date: string; revenue: number | null }> = statsData.evolution.map((e) => ({
         date: e.date,
         revenue: e.revenue,
       }))
@@ -150,7 +186,7 @@ export default function StatistiquesPage() {
       evolutionRows.push({ date: 'Nouveaux Clients', revenue: statsData.kpi.newClients.val })
 
       // Prepare Sheet 2: Top Products
-      const topProductsRows = statsData.topProducts.map((p: any) => ({
+      const topProductsRows = statsData.topProducts.map((p) => ({
         code: p.code,
         name: p.name,
         qty: p.qty,
@@ -159,7 +195,7 @@ export default function StatistiquesPage() {
       }))
 
       // Prepare Sheet 3: CSE & Conventions
-      const cseRows = partnersList.map((p: any) => ({
+      const cseRows = (partnersList as PartnerStatsRow[]).map((p) => ({
         name: p.name,
         type: p.type === 'CSE' ? 'Comité Social et Économique (CSE)' : 'Convention Entreprise',
         discount: p.discountValue,
@@ -170,12 +206,13 @@ export default function StatistiquesPage() {
       }))
 
       // Prepare Sheet 4: Répartition Géographique
-      const geoRows = statsData.geographic.map((g: any) => ({
+      const geoRows = statsData.geographic.map((g) => ({
         region: g.region,
         count: g.count,
         ca: g.ca,
       }))
 
+      const { exportToExcel } = await import('@/lib/excelExport')
       await exportToExcel({
         filename: `rapport_financier_paraglow_${period}_${new Date().toISOString().split('T')[0]}`,
         sheets: [
@@ -240,7 +277,7 @@ export default function StatistiquesPage() {
 
   return (
     <div className="w-full min-h-screen text-[#2a1f0e] font-sans pb-10 print:p-0">
-      
+
       {/* 1. Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-[#eadfca]/60 pb-5 print:hidden">
         <div className="text-left">
@@ -250,7 +287,7 @@ export default function StatistiquesPage() {
               Live
             </span>
           </div>
-          <p className="text-xs text-[#6b5f4f]/80 mt-1">Consultez l'évolution de votre activité commerciale, vos bénéfices nets et le comportement client.</p>
+          <p className="text-xs text-[#6b5f4f]/80 mt-1">Consultez l&apos;évolution de votre activité commerciale, vos bénéfices nets et le comportement client.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -261,7 +298,7 @@ export default function StatistiquesPage() {
           >
             <Download className="w-3.5 h-3.5" /> Exporter Excel
           </button>
-          
+
           <button
             onClick={handlePrintPDF}
             disabled={!statsData}
@@ -297,8 +334,8 @@ export default function StatistiquesPage() {
                 key={p.id}
                 onClick={() => { setPeriod(p.id); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-                  period === p.id 
-                    ? 'bg-[#153f2b] text-white shadow-xs' 
+                  period === p.id
+                    ? 'bg-[#153f2b] text-white shadow-xs'
                     : 'text-[#6b5f4f] hover:bg-[#FBF6EC]'
                 }`}
               >
@@ -345,13 +382,13 @@ export default function StatistiquesPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          
+
           {/* 4. KPI CARDS SECTION */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            
+
             {/* KPI: Chiffre d'affaires */}
             <div className="bg-white border border-[#eadfca] rounded-2xl p-4 shadow-3xs hover:shadow-2xs transition-shadow text-left">
-              <span className="text-[10px] uppercase font-bold text-[#6b5f4f] block">Chiffre d'Affaires</span>
+              <span className="text-[10px] uppercase font-bold text-[#6b5f4f] block">Chiffre d&apos;Affaires</span>
               <span className="text-lg font-serif font-bold text-[#153f2b] block mt-1">{formatTND(statsData.kpi.ca.val)}</span>
               <div className="flex items-center gap-1 mt-1 text-[10px]">
                 {statsData.kpi.ca.var >= 0 ? (
@@ -383,7 +420,7 @@ export default function StatistiquesPage() {
                 )}
                 <span className="text-[#9b8f7a] text-[9px]">vs p. préc.</span>
               </div>
-              
+
               {/* Product Exclusion Note */}
               {statsData.kpi.profit.excludedProducts > 0 && (
                 <div className="absolute right-2 top-2 text-[#c9a052] cursor-help flex items-center gap-0.5" title={`${statsData.kpi.profit.excludedProducts} articles exclus car sans prix d'achat défini.`}>
@@ -474,8 +511,8 @@ export default function StatistiquesPage() {
                 <span className="text-[#c9a052] font-bold">{statsData.kpi.monthlyTarget.progress}% réalisé ({formatTND(statsData.kpi.ca.val)} / {formatTND(statsData.kpi.monthlyTarget.target)})</span>
               </div>
               <div className="w-full h-3 bg-[#FBF6EC] border border-[#eadfca] rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-[#153f2b] to-[#c9a052] rounded-full transition-all duration-500" 
+                <div
+                  className="h-full bg-gradient-to-r from-[#153f2b] to-[#c9a052] rounded-full transition-all duration-500"
                   style={{ width: `${statsData.kpi.monthlyTarget.progress}%` }}
                 />
               </div>
@@ -484,16 +521,16 @@ export default function StatistiquesPage() {
 
           {/* 5. DETAILED CHARTS & SECTIONS GRIDS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
+
             {/* Chart: Chiffre d'affaires Evolution */}
             <div className="bg-white border border-[#eadfca] rounded-2xl p-5 shadow-3xs flex flex-col justify-between">
               <div className="border-b border-[#eadfca]/60 pb-3 mb-4 text-left">
                 <h3 className="font-serif text-sm font-bold text-[#153f2b]">Évolution quotidienne du CA</h3>
-                <p className="text-[10px] text-[#6b5f4f]">Chiffre d'affaires cumulé des commandes livrées par jour.</p>
+                <p className="text-[10px] text-[#6b5f4f]">Chiffre d&apos;affaires cumulé des commandes livrées par jour.</p>
               </div>
 
               <div className="h-64 w-full relative">
-                {statsData.evolution.every((e: any) => e.revenue === 0) && (
+                {statsData.evolution.every((e) => e.revenue === 0) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#FBF6EC]/10 backdrop-blur-3xs rounded-xl z-10">
                     <span className="text-xs text-[#9b8f7a] font-semibold">Pas encore de données de ventes</span>
                   </div>
@@ -509,7 +546,7 @@ export default function StatistiquesPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#eadfca" />
                     <XAxis dataKey="date" stroke="#6b5f4f" fontSize={9} />
                     <YAxis stroke="#6b5f4f" fontSize={9} />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{ backgroundColor: '#FBF6EC', borderColor: '#eadfca', borderRadius: '12px', fontSize: '10px' }}
                       labelStyle={{ fontWeight: 'bold', color: '#153f2b' }}
                     />
@@ -532,15 +569,17 @@ export default function StatistiquesPage() {
               </div>
 
               <div className="space-y-3.5 my-auto">
-                {statsData.ordersByStatus.map((st: any) => {
+                {statsData.ordersByStatus.map((st) => {
                   let statusLabel = st.status
                   let colorClass = 'bg-gray-600'
                   if (st.status === 'PENDING') { statusLabel = 'En attente'; colorClass = 'bg-gray-400' }
                   else if (st.status === 'CONFIRMED') { statusLabel = 'Confirmée'; colorClass = 'bg-blue-600' }
                   else if (st.status === 'PREPARING') { statusLabel = 'En préparation'; colorClass = 'bg-amber-500' }
                   else if (st.status === 'SHIPPED') { statusLabel = 'Expédiée'; colorClass = 'bg-purple-600' }
+                  else if (st.status === 'OUT_FOR_DELIVERY') { statusLabel = 'En livraison'; colorClass = 'bg-cyan-600' }
                   else if (st.status === 'DELIVERED') { statusLabel = 'Livrée'; colorClass = 'bg-emerald-600' }
                   else if (st.status === 'CANCELLED') { statusLabel = 'Annulée'; colorClass = 'bg-rose-600' }
+                  else if (st.status === 'REFUNDED') { statusLabel = 'Remboursée'; colorClass = 'bg-slate-600' }
 
                   return (
                     <div key={st.status} className="space-y-1">
@@ -549,8 +588,8 @@ export default function StatistiquesPage() {
                         <span className="font-mono text-[#6b5f4f] font-bold">{st.count} ({st.percent}%)</span>
                       </div>
                       <div className="w-full h-2 bg-[#FBF6EC] rounded-full overflow-hidden border border-[#eadfca]/30">
-                        <div 
-                          className={`h-full ${colorClass} rounded-full`} 
+                        <div
+                          className={`h-full ${colorClass} rounded-full`}
                           style={{ width: `${st.percent}%` }}
                         />
                       </div>
@@ -569,7 +608,30 @@ export default function StatistiquesPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="sm:hidden space-y-2">
+                {statsData.topProducts.length === 0 ? (
+                  <div className="py-8 text-center text-[#9b8f7a] italic text-xs">Aucune donnée de vente pour cette période.</div>
+                ) : (
+                  statsData.topProducts.map((product) => (
+                    <div key={product.id} className="rounded-xl border border-[#eadfca] bg-[#faf8f5] p-3 flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-lg border border-[#eadfca] overflow-hidden relative flex-shrink-0 bg-white">
+                        <ProductImage src={product.image} alt={product.name} fill sizes="44px" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-[#153f2b] truncate">{product.name}</p>
+                        <p className="text-[9px] font-mono text-[#9b8f7a]">{product.code}</p>
+                        <div className="flex items-center gap-3 mt-1.5 text-[10px]">
+                          <span><b>{product.qty}</b> unités</span>
+                          <span className="font-bold text-[#c9a052]">{formatTND(product.ca)}</span>
+                          {product.profit > 0 && <span className="font-bold text-emerald-600">{formatTND(product.profit)}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left text-[11px] border-collapse">
                   <thead>
                     <tr className="border-b border-[#eadfca] text-[#153f2b] font-bold">
@@ -585,7 +647,7 @@ export default function StatistiquesPage() {
                         <td colSpan={4} className="py-8 text-center text-[#9b8f7a] italic">Aucune donnée de vente pour cette période.</td>
                       </tr>
                     ) : (
-                      statsData.topProducts.map((p: any) => (
+                      statsData.topProducts.map((p) => (
                         <tr key={p.id} className="border-b border-[#eadfca]/40 hover:bg-[#FBF6EC]/10">
                           <td className="py-2.5 flex items-center gap-2">
                             <div className="w-8 h-8 rounded border border-[#eadfca]/80 overflow-hidden relative flex-shrink-0 bg-[#FBF6EC]">
@@ -611,7 +673,7 @@ export default function StatistiquesPage() {
 
             {/* Split: Geographic & Category sales */}
             <div className="space-y-6">
-              
+
               {/* Category split */}
               <div className="bg-white border border-[#eadfca] rounded-2xl p-5 shadow-3xs text-left">
                 <h3 className="font-serif text-sm font-bold text-[#153f2b] border-b border-[#eadfca]/60 pb-3 mb-4">Répartition par catégorie</h3>
@@ -626,7 +688,7 @@ export default function StatistiquesPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#eadfca" />
                       <XAxis dataKey="category" stroke="#6b5f4f" fontSize={9} />
                       <YAxis stroke="#6b5f4f" fontSize={9} />
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#FBF6EC', borderColor: '#eadfca', borderRadius: '12px', fontSize: '10px' }}
                       />
                       <Bar dataKey="ca" fill="#c9a052" radius={[4, 4, 0, 0]} name="Ventes (TND)" />
@@ -642,7 +704,7 @@ export default function StatistiquesPage() {
                   {statsData.geographic.length === 0 ? (
                     <div className="py-8 text-center text-[#9b8f7a] italic">Aucune commande enregistrée.</div>
                   ) : (
-                    statsData.geographic.map((g: any) => (
+                    statsData.geographic.map((g) => (
                       <div key={g.region} className="py-2.5 flex items-center justify-between">
                         <span className="font-bold text-[#153f2b] flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-[#c9a052]" /> {g.region}
@@ -664,14 +726,33 @@ export default function StatistiquesPage() {
               <div className="border-b border-[#eadfca]/60 pb-3 mb-4 flex justify-between items-center">
                 <div>
                   <h3 className="font-serif text-sm font-bold text-[#153f2b]">Top Clients</h3>
-                  <p className="text-[10px] text-[#6b5f4f]">Clients avec le volume d'achats le plus élevé.</p>
+                  <p className="text-[10px] text-[#6b5f4f]">Clients avec le volume d&apos;achats le plus élevé.</p>
                 </div>
                 <Link href="/admin/clients" className="text-[10px] text-[#c9a052] font-semibold flex items-center hover:underline">
                   CRM Clients <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="sm:hidden space-y-2">
+                {statsData.topClients.length === 0 ? (
+                  <div className="py-8 text-center text-[#9b8f7a] italic text-xs">Aucune donnée client pour cette période.</div>
+                ) : (
+                  statsData.topClients.map((client) => (
+                    <div key={client.phone} className="rounded-xl border border-[#eadfca] bg-[#faf8f5] p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[#153f2b] truncate">{client.nom}</p>
+                          <p className="text-[10px] font-mono text-[#6b5f4f] mt-0.5">{client.phone}</p>
+                        </div>
+                        <span className="text-xs font-bold text-[#c9a052] whitespace-nowrap">{formatTND(client.total)}</span>
+                      </div>
+                      <p className="text-[10px] text-[#6b5f4f] mt-2">{client.count} commandes</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left text-[11px] border-collapse">
                   <thead>
                     <tr className="border-b border-[#eadfca] text-[#153f2b] font-bold">
@@ -687,7 +768,7 @@ export default function StatistiquesPage() {
                         <td colSpan={4} className="py-8 text-center text-[#9b8f7a] italic">Aucune donnée client pour cette période.</td>
                       </tr>
                     ) : (
-                      statsData.topClients.map((c: any) => (
+                      statsData.topClients.map((c) => (
                         <tr key={c.phone} className="border-b border-[#eadfca]/40 hover:bg-[#FBF6EC]/10">
                           <td className="py-2.5 font-bold text-[#153f2b]">{c.nom}</td>
                           <td className="py-2.5 font-mono text-[#6b5f4f]">{c.phone}</td>
@@ -703,9 +784,9 @@ export default function StatistiquesPage() {
 
             {/* Split Card: Sources & order source counts */}
             <div className="bg-white border border-[#eadfca] rounded-2xl p-5 shadow-3xs text-left flex flex-col justify-between">
-              <h3 className="font-serif text-sm font-bold text-[#153f2b] border-b border-[#eadfca]/60 pb-3 mb-4">Sources d'acquisition</h3>
+              <h3 className="font-serif text-sm font-bold text-[#153f2b] border-b border-[#eadfca]/60 pb-3 mb-4">Sources d&apos;acquisition</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-auto">
-                {statsData.sources.map((s: any) => (
+                {statsData.sources.map((s) => (
                   <div key={s.source} className="p-4 border border-[#eadfca] bg-[#FBF6EC]/25 rounded-2xl">
                     <span className="text-[10px] font-bold uppercase text-[#6b7d53] block">{s.source}</span>
                     <span className="text-xl font-serif font-bold text-[#153f2b] block mt-1.5">{formatTND(s.ca)}</span>
@@ -741,7 +822,7 @@ export default function StatistiquesPage() {
               onChange={(e) => setSettings({ ...settings, defaultPeriod: e.target.value })}
               className="w-full px-3 py-2 border border-[#d5cfc0] rounded-lg bg-[#faf8f5] focus:outline-none focus:border-[#1b3a1e] text-xs font-semibold text-[#2a1f0e]"
             >
-              <option value="today">Aujourd'hui</option>
+              <option value="today">Aujourd&apos;hui</option>
               <option value="7days">7 jours</option>
               <option value="30days">30 jours (Recommandé)</option>
               <option value="thisMonth">Ce mois</option>
@@ -753,7 +834,7 @@ export default function StatistiquesPage() {
           <div className="flex items-center justify-between p-3 border border-[#eadfca]/60 bg-[#FBF6EC]/20 rounded-xl">
             <div>
               <span className="block font-bold text-[#153f2b]">Inclure commandes internes</span>
-              <span className="text-[10px] text-[#6b5f4f]/80">Compte les commandes d'administration dans le CA</span>
+              <span className="text-[10px] text-[#6b5f4f]/80">Compte les commandes d&apos;administration dans le CA</span>
             </div>
             <input
               type="checkbox"
@@ -764,7 +845,7 @@ export default function StatistiquesPage() {
           </div>
 
           <div>
-            <label className="block text-[10px] font-semibold text-[#6b7d53] uppercase mb-1.5">Seuil du "Top" palmarès</label>
+            <label className="block text-[10px] font-semibold text-[#6b7d53] uppercase mb-1.5">Seuil du &quot;Top&quot; palmarèsmarès</label>
             <select
               value={settings.topThreshold}
               onChange={(e) => setSettings({ ...settings, topThreshold: parseInt(e.target.value) || 10 })}

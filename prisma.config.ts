@@ -9,6 +9,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migration/introspection commands need a direct PostgreSQL connection.
+    // Runtime Prisma continues to use DATABASE_URL (the Supabase pooler) in src/lib/prisma.ts.
+    url: process.env["DIRECT_URL"] || process.env["DATABASE_URL"],
   },
 });

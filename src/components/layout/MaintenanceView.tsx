@@ -13,8 +13,6 @@ interface MaintenanceViewProps {
 }
 
 export default function MaintenanceView({ locale, contactInfo }: MaintenanceViewProps) {
-  const isRTL = locale === 'ar'
-
   const translations = {
     fr: {
       title: "Nous revenons bientôt",

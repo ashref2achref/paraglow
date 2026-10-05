@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ActionMenuPortal from '@/components/admin/ActionMenuPortal'
@@ -25,10 +25,67 @@ import {
   Package
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import ProductImage from '@/components/ui/ProductImage'
 import Modal from '@/components/ui/Modal'
-import { exportToExcel } from '@/lib/excelExport'
 import { computeDisplayPrice } from '@/lib/productPricing'
+
+interface AdminCategory {
+  id: string
+  name: string
+}
+
+interface AdminBrand {
+  id: string
+  name: string
+}
+
+interface AdminProduct {
+  id: string
+  code: string
+  barcode?: string | null
+  name: string
+  nameAr?: string | null
+  nameEn?: string | null
+  description?: string | null
+  slug: string
+  categoryId?: string | null
+  brandId?: string | null
+  category?: AdminCategory | null
+  brand?: AdminBrand | null
+  purchasePriceHT: number
+  margin: number
+  tva: number
+  sellingPriceTTC: number
+  sellingPriceHT: number
+  publicPrice?: number | null
+  stock: number
+  stockMin: number
+  images?: string | null
+  imageUrl?: string | null
+  remiseType: 'AUCUNE' | 'POURCENTAGE' | 'PRIX_FIXE'
+  remiseValeur?: number | null
+  remiseVisible: boolean
+  isActive: boolean
+  isFeatured: boolean
+  isBestSeller: boolean
+  isNew: boolean
+  isOnSale: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+interface ProductLogEntry {
+  id: string
+  action: string
+  details: string
+  changes?: string | null
+  createdAt: string
+}
+
+type ChangeDelta = { before?: unknown; after?: unknown }
+
+type ExportRow = Record<string, string | number>
 
 // Portalled Dropdown component for Actions
 function ActionMenu({
@@ -91,9 +148,9 @@ export default function ProduitsPage() {
   const router = useRouter()
 
   // State Lists
-  const [products, setProducts] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
-  const [brands, setBrands] = useState<any[]>([])
+  const [products, setProducts] = useState<AdminProduct[]>([])
+  const [categories, setCategories] = useState<AdminCategory[]>([])
+  const [brands, setBrands] = useState<AdminBrand[]>([])
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -103,6 +160,7 @@ export default function ProduitsPage() {
 
   // Filters & State
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 320)
   const [category, setCategory] = useState('')
   const [brand, setBrand] = useState('')
   const [stock, setStock] = useState('')
@@ -120,13 +178,13 @@ export default function ProduitsPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<any>(null)
+  const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null)
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
   const [productToDeleteName, setProductToDeleteName] = useState<string>('')
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false)
 
-  
+
   // Specific menu triggers
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -146,29 +204,17 @@ export default function ProduitsPage() {
   })
 
   // Logs local state
-  const [logs, setLogs] = useState<any[]>([])
+  const [logs, setLogs] = useState<ProductLogEntry[]>([])
   const [logPage, setLogPage] = useState(1)
   const [logTotalPages, setLogTotalPages] = useState(1)
 
-  useEffect(() => {
-    fetch('/api/admin/categories?filterEmpty=true').then((r) => r.json()).then((d) => setCategories(d.categories || []))
-    fetch('/api/admin/brands?filterEmpty=true').then((r) => r.json()).then((d) => setBrands(d.brands || []))
-    fetch('/api/admin/products/trash').then((r) => r.json()).then((d) => setTrashCount(d.products?.length || 0))
-    loadSettings()
-  }, [])
-
-  // Reload products on filter changes
-  useEffect(() => {
-    loadProducts()
-  }, [search, category, brand, stock, status, image, discount, sort, page])
-
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     setLoading(true)
     try {
       const q = new URLSearchParams({
         page: String(page),
         limit: settings.productsPerPage || '20',
-        search,
+        search: debouncedSearch,
         category,
         brand,
         stock,
@@ -189,9 +235,9 @@ export default function ProduitsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, settings.productsPerPage, debouncedSearch, category, brand, stock, status, image, discount, sort])
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/settings')
       const data = await res.json()
@@ -199,7 +245,25 @@ export default function ProduitsPage() {
         setSettings(data.settings)
       }
     } catch { /* ignore */ }
-  }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void Promise.all([
+        fetch('/api/admin/categories?filterEmpty=true').then((r) => r.json()).then((data) => setCategories(data.categories || [])),
+        fetch('/api/admin/brands?filterEmpty=true').then((r) => r.json()).then((data) => setBrands(data.brands || [])),
+        fetch('/api/admin/products/trash').then((r) => r.json()).then((data) => setTrashCount(data.products?.length || 0)),
+        loadSettings(),
+      ])
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadSettings])
+
+  // Reload products on filter changes.
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadProducts(), 0)
+    return () => window.clearTimeout(timer)
+  }, [loadProducts])
 
   const getPaginationRange = () => {
     const range = []
@@ -244,7 +308,7 @@ export default function ProduitsPage() {
       }
       return [1, '...', ...middleRange, '...', totalPages]
     }
-    
+
     return []
   }
 
@@ -361,7 +425,7 @@ export default function ProduitsPage() {
         return
       }
 
-      const exportRows = data.products.map((p: any) => ({
+      const exportRows: ExportRow[] = (data.products as AdminProduct[]).map((p) => ({
         Code: p.code,
         Barcode: p.barcode || '',
         Nom: p.name,
@@ -379,6 +443,7 @@ export default function ProduitsPage() {
       }))
 
       if (format === 'xlsx') {
+        const { exportToExcel } = await import('@/lib/excelExport')
         await exportToExcel({
           filename: `paraglow-catalogue-${Date.now()}`,
           sheets: [
@@ -409,7 +474,7 @@ export default function ProduitsPage() {
         const headers = Object.keys(exportRows[0])
         const csvContent = [
           headers.join(','),
-          ...exportRows.map((row: any) =>
+          ...exportRows.map((row) =>
             headers.map((h) => `"${String(row[h]).replace(/"/g, '""')}"`).join(',')
           ),
         ].join('\n')
@@ -465,14 +530,14 @@ export default function ProduitsPage() {
                   <tbody>
                     ${exportRows
                       .map(
-                        (row: any) => `
+                        (row) => `
                       <tr>
                         <td><strong>${row.Code}</strong></td>
                         <td>${row.Nom}</td>
                         <td>${row.Catégorie}</td>
                         <td>${row.Marque}</td>
                         <td>${row.Stock}</td>
-                        <td class="price">${row['Prix Vente TTC'].toFixed(3)} TND</td>
+                        <td class="price">${Number(row['Prix Vente TTC']).toFixed(3)} TND</td>
                         <td>${row['Remise Valeur'] ? `${row['Remise Valeur']}${row['Remise Type'] === 'POURCENTAGE' ? '%' : ' TND'}` : 'Aucune'}</td>
                         <td><span class="badge ${
                           row.Statut === 'ACTIF' ? 'badge-active' : 'badge-inactive'
@@ -517,7 +582,7 @@ export default function ProduitsPage() {
 
   return (
     <div className="space-y-6 font-sans text-[#2a1f0e] max-w-full overflow-hidden">
-      
+
       {/* 1. Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -544,7 +609,7 @@ export default function ProduitsPage() {
           >
             <FolderInput className="w-4 h-4 text-[#c9a052]" /> Importer
           </Link>
-          
+
           {/* Export dropdown trigger */}
           <div className="relative">
             <button
@@ -719,7 +784,7 @@ export default function ProduitsPage() {
                 Ajouter manuellement
               </Link>
               <Link href="/admin/import" className="px-4 py-2 bg-[#FBF6EC] border border-[#eadfca] text-[#1b3a1e] text-xs font-semibold rounded-lg transition-all hover:bg-[#eadfca]/20">
-                Lancer l'import
+                Lancer l&apos;import
               </Link>
             </div>
           </div>
@@ -752,9 +817,6 @@ export default function ProduitsPage() {
               </thead>
               <tbody className="divide-y divide-[#ede8de] text-xs">
                 {products.map((prod) => {
-                  const hasImage = prod.imageUrl || (JSON.parse(prod.images || '[]').length > 0)
-                  const coverImage = prod.imageUrl || JSON.parse(prod.images || '[]')[0] || '/images/paraglow-favicon-512.png'
-
                   // Threshold badge
                   const isLow = prod.stock > 0 && prod.stock <= parseInt(settings.lowStockThreshold || '10')
                   const isOut = prod.stock === 0
@@ -1042,7 +1104,7 @@ export default function ProduitsPage() {
               <span className="font-semibold">{Math.min(totalProducts, page * parseInt(settings.productsPerPage))}</span> sur{' '}
               <span className="font-semibold">{totalProducts}</span> produits
             </div>
-            
+
             <div className="flex items-center gap-1.5">
               <button
                 disabled={page === 1}
@@ -1051,7 +1113,7 @@ export default function ProduitsPage() {
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              
+
               {getPaginationRange().map((p, i) => {
                 if (p === '...') {
                   return (
@@ -1232,14 +1294,14 @@ export default function ProduitsPage() {
       >
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p className="text-xs text-[#6b5f4f]/80">Visualisez l'historique complet des actions d'import, création, modifications et suppressions.</p>
+            <p className="text-xs text-[#6b5f4f]/80">Visualisez l&apos;historique complet des actions d&apos;import, création, modifications et suppressions.ions.</p>
             <ClearHistoryButton endpoint="/api/admin/logs" onCleared={() => loadLogs(1)} />
           </div>
 
           {/* Scrollable logs list */}
           <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
             {logs.length === 0 ? (
-              <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l'historique.</div>
+              <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l&apos;historique.</div>
             ) : (
               logs.map((log) => (
                 <div key={log.id} className="p-4 border border-[#eadfca] rounded-xl bg-[#faf8f5] space-y-2 hover:border-[#c9a052]/30 transition-colors">
@@ -1261,7 +1323,7 @@ export default function ProduitsPage() {
 
                   {log.changes && (
                     <div className="text-[10px] bg-white border border-[#ede8de] rounded-lg p-2 font-mono text-[#6b5f4f] space-y-1">
-                      {Object.entries(JSON.parse(log.changes)).map(([field, delta]: any) => {
+                      {Object.entries(JSON.parse(log.changes) as Record<string, ChangeDelta>).map(([field, delta]) => {
                         if (delta.before !== undefined && delta.after !== undefined) {
                           return (
                             <div key={field}>
@@ -1341,7 +1403,7 @@ export default function ProduitsPage() {
                             <div className="flex gap-2 flex-wrap">
                               {imgs.map((url: string, idx: number) => (
                                 <div key={idx} className="w-14 h-14 rounded-xl border border-[#eadfca] p-1 bg-white overflow-hidden flex items-center justify-center">
-                                  <img src={url} alt="" className="object-contain w-full h-full p-0.5" />
+                                  <ProductImage src={url} alt={selectedProduct.name} fill sizes="56px" className="object-contain p-0.5" />
                                 </div>
                               ))}
                             </div>
@@ -1371,8 +1433,8 @@ export default function ProduitsPage() {
                       </span>
                     )}
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                      selectedProduct.isActive 
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      selectedProduct.isActive
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : 'bg-rose-50 text-rose-700 border border-rose-200'
                     }`}>
                       {selectedProduct.isActive ? 'Actif' : 'Masqué'}
@@ -1412,7 +1474,7 @@ export default function ProduitsPage() {
                       </span>
                     </div>
                     <div>
-                      <span className="text-[#9b8f7a] text-[9px] uppercase font-bold tracking-wider block mb-1">Seuil d'alerte</span>
+                      <span className="text-[#9b8f7a] text-[9px] uppercase font-bold tracking-wider block mb-1">Seuil d&apos;alerte</span>
                       <p className="font-bold text-[#2a1f0e] pl-1">{selectedProduct.stockMin} unités</p>
                     </div>
                   </div>
@@ -1435,7 +1497,7 @@ export default function ProduitsPage() {
                       <span className="font-semibold font-mono text-[#2a1f0e]">{selectedProduct.tva?.toFixed(1)}%</span>
                     </div>
                   </div>
-                  
+
                   <div className="border-t border-[#eadfca] pt-3 mt-2 flex justify-between items-baseline">
                     <span className="font-bold text-sm text-[#153f2b]">Prix public TTC :</span>
                     <span className="font-mono text-xl font-bold text-[#c9a052]">
@@ -1577,7 +1639,7 @@ export default function ProduitsPage() {
       >
         <div className="space-y-4 text-xs text-left">
           <p className="text-[#6b5f4f] leading-relaxed">
-            Êtes-vous sûr de vouloir mettre le produit <strong className="text-[#153f2b]">"{productToDeleteName}"</strong> dans la corbeille ? Il ne sera plus visible sur le site public mais pourra être restauré.
+            Êtes-vous sûr de vouloir mettre le produit <strong className="text-[#153f2b]">&quot;{productToDeleteName}&quot;</strong> dans la corbeille ? Il ne sera plus visible sur le site public mais pourra être restauré.
           </p>
           <div className="flex justify-end gap-2 pt-2 border-t border-[#eadfca]/40">
             <button

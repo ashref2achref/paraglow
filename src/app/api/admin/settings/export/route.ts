@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
+import ExcelJS from 'exceljs'
 import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
-import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
 
 async function checkAuth(request: NextRequest) {
-  return await checkAdminAuth(request);}
+  return await checkAdminAuth(request)
+}
+
+function addObjectSheet(
+  workbook: ExcelJS.Workbook,
+  name: string,
+  rows: Record<string, string | number | boolean>[]
+) {
+  const worksheet = workbook.addWorksheet(name)
+  const keys = rows[0] ? Object.keys(rows[0]) : []
+  worksheet.columns = keys.map((key) => ({ header: key, key, width: Math.min(40, Math.max(12, key.length + 3)) }))
+  if (rows.length > 0) worksheet.addRows(rows)
+  worksheet.views = [{ state: 'frozen', ySplit: 1 }]
+  worksheet.getRow(1).font = { bold: true }
+}
 
 export async function GET(request: NextRequest) {
   if (!(await checkAuth(request))) {
@@ -14,94 +28,88 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 1. Fetch Products
     const products = await prisma.product.findMany({
       where: { supprime: false },
-      include: { category: true, brand: true }
+      include: { category: true, brand: true },
     })
-    const productRows = products.map(p => ({
-      ID: p.id,
-      Code: p.code,
-      CodeBarre: p.barcode || '',
-      Nom: p.name,
-      NomAr: p.nameAr || '',
-      NomEn: p.nameEn || '',
-      Categorie: p.category?.name || '',
-      Marque: p.brand?.name || '',
-      PrixAchatHT: p.purchasePriceHT,
-      PrixVenteTTC: p.sellingPriceTTC,
-      Marge: p.margin,
-      TVA: p.tva,
-      Stock: p.stock,
-      StockMin: p.stockMin,
-      RemiseType: p.remiseType,
-      RemiseValeur: p.remiseValeur || 0,
-      RemiseVisible: p.remiseVisible ? 'Oui' : 'Non',
-      Actif: p.isActive ? 'Oui' : 'Non'
+    const productRows = products.map((product) => ({
+      ID: product.id,
+      Code: product.code,
+      CodeBarre: product.barcode || '',
+      Nom: product.name,
+      NomAr: product.nameAr || '',
+      NomEn: product.nameEn || '',
+      Categorie: product.category?.name || '',
+      Marque: product.brand?.name || '',
+      PrixAchatHT: product.purchasePriceHT,
+      PrixVenteTTC: product.sellingPriceTTC,
+      Marge: product.margin,
+      TVA: product.tva,
+      Stock: product.stock,
+      StockMin: product.stockMin,
+      RemiseType: product.remiseType,
+      RemiseValeur: product.remiseValeur || 0,
+      RemiseVisible: product.remiseVisible ? 'Oui' : 'Non',
+      Actif: product.isActive ? 'Oui' : 'Non',
     }))
 
-    // 2. Fetch Orders
     const orders = await prisma.order.findMany({
       where: { supprime: false },
-      include: { client: true }
+      include: { client: true },
     })
-    const orderRows = orders.map(o => ({
-      ID: o.id,
-      NumeroCommande: o.orderNumber,
-      Client: o.client ? `${o.client.prenom} ${o.client.nom}` : o.guestName || 'Glow Client',
-      Telephone: o.guestPhone || o.client?.phone || '',
-      Email: o.guestEmail || o.client?.email || '',
-      Statut: o.status,
-      MethodePaiement: o.paymentMethod,
-      StatutPaiement: o.paymentStatus,
-      FraisLivraison: o.deliveryFee,
-      SousTotal: o.subtotal,
-      Discount: o.discount,
-      Total: o.total,
-      Source: o.source,
-      DateCreation: o.createdAt.toISOString()
+    const orderRows = orders.map((order) => ({
+      ID: order.id,
+      NumeroCommande: order.orderNumber,
+      Client: order.client ? `${order.client.prenom} ${order.client.nom}` : order.guestName || 'Glow Client',
+      Telephone: order.guestPhone || order.client?.phone || '',
+      Email: order.guestEmail || order.client?.email || '',
+      Statut: order.status,
+      MethodePaiement: order.paymentMethod,
+      StatutPaiement: order.paymentStatus,
+      FraisLivraison: order.deliveryFee,
+      AdresseLivraison: order.deliveryAddress || order.client?.adresse || '',
+      SousTotal: order.subtotal,
+      Discount: order.discount,
+      Total: order.total,
+      Source: order.source,
+      DateCreation: order.createdAt.toISOString(),
     }))
 
-    // 3. Fetch Customers
     const clients = await prisma.client.findMany({
-      include: { partner: true }
+      where: { supprime: false },
+      include: { partner: true },
     })
-    const clientRows = clients.map(c => ({
-      ID: c.id,
-      Prenom: c.prenom,
-      Nom: c.nom,
-      Telephone: c.phone,
-      Email: c.email || '',
-      Adresse: c.adresse || '',
-      SocieteConvention: c.partner?.name || 'Aucune',
-      DateCreation: c.createdAt.toISOString()
+    const clientRows = clients.map((client) => ({
+      ID: client.id,
+      Prenom: client.prenom,
+      Nom: client.nom,
+      Telephone: client.phone,
+      Email: client.email || '',
+      Adresse: client.adresse || '',
+      SocieteConvention: client.partner?.name || 'Aucune',
+      DateCreation: client.createdAt.toISOString(),
     }))
 
-    // Create workbook and worksheets
-    const wb = XLSX.utils.book_new()
+    const workbook = new ExcelJS.Workbook()
+    workbook.creator = 'ParaGlow'
+    workbook.created = new Date()
 
-    const wsProducts = XLSX.utils.json_to_sheet(productRows)
-    const wsOrders = XLSX.utils.json_to_sheet(orderRows)
-    const wsClients = XLSX.utils.json_to_sheet(clientRows)
+    addObjectSheet(workbook, 'Produits', productRows)
+    addObjectSheet(workbook, 'Commandes', orderRows)
+    addObjectSheet(workbook, 'Clients', clientRows)
 
-    XLSX.utils.book_append_sheet(wb, wsProducts, 'Produits')
-    XLSX.utils.book_append_sheet(wb, wsOrders, 'Commandes')
-    XLSX.utils.book_append_sheet(wb, wsClients, 'Clients')
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
 
-    // Write buffer
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
-
-    // Return response
-    return new NextResponse(buf, {
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         'Content-Disposition': 'attachment; filename="paraglow_data_export.xlsx"',
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      }
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Cache-Control': 'private, no-store',
+      },
     })
-  } catch (error: any) {
-    console.error('Export GET error:', error)
-    console.error('Export settings error:', error);
-    return new NextResponse('Erreur lors de l\'exportation des données', { status: 500 })
+  } catch (error) {
+    console.error('Export settings error:', error)
+    return new NextResponse('Erreur lors de l’exportation des données', { status: 500 })
   }
 }

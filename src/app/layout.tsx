@@ -1,30 +1,11 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { Cormorant_Garamond, Inter, Noto_Naskh_Arabic } from 'next/font/google'
 import { getLocale } from 'next-intl/server'
-
-const cormorant = Cormorant_Garamond({
-  subsets: ['latin'],
-  weight: ['400', '600', '700'],
-  variable: '--font-cormorant',
-  display: 'swap',
-})
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-inter',
-  display: 'swap',
-})
-
-const notoArabic = Noto_Naskh_Arabic({
-  subsets: ['arabic'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-noto-arabic',
-  display: 'swap',
-})
+import PageAnalytics from '@/components/analytics/PageAnalytics'
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://paraglow.tn'),
+  manifest: '/manifest.json',
   title: 'ParaGlow — Parapharmacie Premium',
   description: 'Votre parapharmacie en ligne premium en Tunisie. Soins visage, corps, cheveux et bien-être.',
   keywords: 'parapharmacie, soins, beauté, tunisie, paraglow',
@@ -44,14 +25,15 @@ export default async function RootLayout({
   let locale = 'fr'
   try {
     locale = await getLocale()
-  } catch (e) {
+  } catch {
     // fallback if layout context is not ready yet
   }
   const dir = locale === 'ar' ? 'rtl' : 'ltr'
 
   return (
-    <html lang={locale} dir={dir} className={`${cormorant.variable} ${inter.variable} ${notoArabic.variable}`}>
+    <html lang={locale} dir={dir}>
       <body>
+        <PageAnalytics />
         {children}
       </body>
     </html>

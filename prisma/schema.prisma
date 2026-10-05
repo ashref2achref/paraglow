@@ -129,6 +129,7 @@ model Order {
   guestName      String?
   guestPhone     String?
   wilaya         String?
+  deliveryAddress String?
   status         OrderStatus     @default(PENDING)
   paymentMethod  PaymentMethod   @default(CASH_ON_DELIVERY)
   paymentStatus  PaymentStatus   @default(PENDING)

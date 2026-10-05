@@ -1,6 +1,7 @@
 'use client'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { trackEvent } from '@/lib/analytics'
 
 export interface CartItem {
   id: string
@@ -36,6 +37,11 @@ export const useCartStore = create<CartStore>()(
       items: [],
       isOpen: false,
       addItem: (item, quantity = 1) => {
+        trackEvent('add_to_cart', {
+          product_id: item.productId,
+          quantity,
+          value: item.price,
+        })
         const existing = get().items.find(i => i.productId === item.productId)
         if (existing) {
           set({ items: get().items.map(i =>
@@ -47,9 +53,12 @@ export const useCartStore = create<CartStore>()(
           set({ items: [...get().items, { ...item, quantity }] })
         }
       },
-      removeItem: (productId) =>
-        set({ items: get().items.filter(i => i.productId !== productId) }),
+      removeItem: (productId) => {
+        trackEvent('remove_from_cart', { product_id: productId })
+        set({ items: get().items.filter(i => i.productId !== productId) })
+      },
       updateQuantity: (productId, quantity) => {
+        trackEvent('update_cart', { product_id: productId, quantity })
         if (quantity <= 0) {
           get().removeItem(productId)
         } else {

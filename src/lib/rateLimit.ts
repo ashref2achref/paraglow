@@ -1,9 +1,25 @@
+import { randomUUID } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 
 interface RateLimiterOptions {
   windowMs: number
   maxHits: number
+}
+
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000
+let lastCleanupAt = 0
+
+async function cleanupExpiredRateLimits(now: Date) {
+  const nowMs = now.getTime()
+  if (nowMs - lastCleanupAt < RATE_LIMIT_CLEANUP_INTERVAL_MS) return
+
+  lastCleanupAt = nowMs
+  try {
+    await prisma.rateLimit.deleteMany({ where: { expiresAt: { lt: now } } })
+  } catch (error) {
+    console.error('[RateLimiter] Expired-row cleanup failed:', error)
+  }
 }
 
 export async function isRateLimited(
@@ -14,77 +30,42 @@ export async function isRateLimited(
   const ip = clientIp(request)
   const key = `${typeKey}:${ip}`
   const now = new Date()
-
-  // 1. Clean expired entries at the moment of request to avoid database bloat
-  try {
-    await prisma.rateLimit.deleteMany({
-      where: {
-        expiresAt: { lt: now }
-      }
-    })
-  } catch (error) {
-    console.error('[RateLimiter] Error cleaning expired entries:', error)
-  }
+  const expiresAt = new Date(now.getTime() + options.windowMs)
 
   try {
-    // 2. Retrieve or update the rate limit record
-    const record = await prisma.rateLimit.findUnique({
-      where: { key }
-    })
+    // One PostgreSQL statement makes create/reset/increment atomic across
+    // concurrent Vercel instances. This avoids the find-then-create race.
+    const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+      INSERT INTO "RateLimit" ("id", "key", "count", "expiresAt", "createdAt", "updatedAt")
+      VALUES (${randomUUID()}, ${key}, 1, ${expiresAt}, ${now}, ${now})
+      ON CONFLICT ("key")
+      DO UPDATE SET
+        "count" = CASE
+          WHEN "RateLimit"."expiresAt" <= ${now} THEN 1
+          ELSE "RateLimit"."count" + 1
+        END,
+        "expiresAt" = CASE
+          WHEN "RateLimit"."expiresAt" <= ${now} THEN ${expiresAt}
+          ELSE "RateLimit"."expiresAt"
+        END,
+        "updatedAt" = ${now}
+      RETURNING "count"
+    `
 
-    if (!record) {
-      // First hit in this window: create record
-      const expiresAt = new Date(now.getTime() + options.windowMs)
-      await prisma.rateLimit.create({
-        data: {
-          key,
-          count: 1,
-          expiresAt
-        }
-      })
-      return false
-    }
-
-    if (now > record.expiresAt) {
-      // The window has expired: reset count and expiresAt
-      const expiresAt = new Date(now.getTime() + options.windowMs)
-      await prisma.rateLimit.update({
-        where: { key },
-        data: {
-          count: 1,
-          expiresAt
-        }
-      })
-      return false
-    }
-
-    // Still within window: increment hits
-    const updated = await prisma.rateLimit.update({
-      where: { key },
-      data: {
-        count: { increment: 1 }
-      }
-    })
-
-    // Return true if hits exceeded maxHits
-    return updated.count > options.maxHits
+    await cleanupExpiredRateLimits(now)
+    return (rows[0]?.count ?? 1) > options.maxHits
   } catch (error) {
     console.error('[RateLimiter] Database operation failed:', error)
-    // Fail-open: if database fails, allow the request to prevent blocking normal users
+    // Availability takes precedence if the shared limiter store is temporarily unavailable.
     return false
   }
 }
 
 export function clientIp(request: NextRequest | Request): string {
-  // Safe helper to extract headers from both Request and NextRequest
-  const headers = 'headers' in request 
-    ? (request.headers instanceof Headers ? request.headers : new Headers(request.headers as any))
-    : new Headers()
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) return forwarded.split(',')[0].trim()
 
-  const fwd = headers.get('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0].trim()
-  
-  const realIp = headers.get('x-real-ip')
+  const realIp = request.headers.get('x-real-ip')
   if (realIp) return realIp.trim()
 
   return 'unknown'

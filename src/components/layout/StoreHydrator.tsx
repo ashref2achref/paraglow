@@ -12,12 +12,33 @@ type StoreProduct = {
   code: string
   sellingPriceTTC: number
   images: string
+  nameAr?: string | null
+  nameEn?: string | null
 }
 
 export default function StoreHydrator() {
   useEffect(() => {
     // Fetch public site settings on mount
     useSettingsStore.getState().fetchSettings()
+
+    if ('serviceWorker' in navigator) {
+      if (process.env.NODE_ENV === 'production') {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error) => {
+          console.warn('[PWA] Service worker registration failed:', error)
+        })
+      } else {
+        // Development must always use fresh Next.js chunks. Old PWA workers can
+        // otherwise serve stale scripts after HMR and make navigation feel delayed.
+        void navigator.serviceWorker.getRegistrations().then((registrations) =>
+          Promise.all(registrations.map((registration) => registration.unregister()))
+        )
+        if ('caches' in window) {
+          void caches.keys().then((keys) =>
+            Promise.all(keys.filter((key) => key.startsWith('paraglow-')).map((key) => caches.delete(key)))
+          )
+        }
+      }
+    }
 
     const fetchDetails = async () => {
       // Retrieve current items from Zustand stores
@@ -47,10 +68,10 @@ export default function StoreHydrator() {
                 if (p) {
                   let img = ''
                   try {
-                    const parsed = JSON.parse((p as any).images)
+                    const parsed = JSON.parse(p.images)
                     img = parsed[0] || ''
                   } catch {}
-                  const resolvedName = locale === 'ar' ? ((p as any).nameAr || p.name) : locale === 'en' ? ((p as any).nameEn || p.name) : p.name
+                  const resolvedName = locale === 'ar' ? (p.nameAr || p.name) : locale === 'en' ? (p.nameEn || p.name) : p.name
                   return {
                     ...item,
                     name: resolvedName,
@@ -71,10 +92,10 @@ export default function StoreHydrator() {
                 if (p) {
                   let img = ''
                   try {
-                    const parsed = JSON.parse((p as any).images)
+                    const parsed = JSON.parse(p.images)
                     img = parsed[0] || ''
                   } catch {}
-                  const resolvedName = locale === 'ar' ? ((p as any).nameAr || p.name) : locale === 'en' ? ((p as any).nameEn || p.name) : p.name
+                  const resolvedName = locale === 'ar' ? (p.nameAr || p.name) : locale === 'en' ? (p.nameEn || p.name) : p.name
                   return {
                     ...item,
                     name: resolvedName,

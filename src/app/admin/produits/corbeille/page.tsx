@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import Link from 'next/link'
 import {
@@ -13,9 +13,22 @@ import {
   Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
+import ProductImage from '@/components/ui/ProductImage'
+import { resolveProductImage } from '@/lib/productImage'
+
+interface TrashProduct {
+  id: string
+  name: string
+  code: string
+  imageUrl?: string | null
+  images?: string | null
+  category?: { name: string } | null
+  brand?: { name: string } | null
+  supprimeLe?: string | null
+}
 
 export default function CorbeillePage() {
-  const [products, setProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<TrashProduct[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   
@@ -25,11 +38,7 @@ export default function CorbeillePage() {
   const [activeProductId, setActiveProductId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    loadTrash()
-  }, [])
-
-  const loadTrash = async () => {
+  const loadTrash = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch('/api/admin/products/trash')
@@ -42,7 +51,14 @@ export default function CorbeillePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadTrash()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadTrash])
 
   const handleRestore = async (ids: string[]) => {
     try {
@@ -178,7 +194,7 @@ export default function CorbeillePage() {
             </div>
             <h3 className="font-serif text-xl font-bold text-[#153f2b] mb-1">La corbeille est vide</h3>
             <p className="text-sm text-[#6b5f4f]/80 max-w-sm mb-6">
-              Il n'y a aucun produit en attente de suppression définitive.
+              Il n&apos;y a aucun produit en attente de suppression définitive.
             </p>
             <Link href="/admin/produits" className="px-4 py-2 bg-[#1b3a1e] hover:bg-[#c9a052] text-white text-xs font-semibold rounded-lg shadow-sm transition-all">
               Retourner au catalogue
@@ -207,8 +223,8 @@ export default function CorbeillePage() {
               </thead>
               <tbody className="divide-y divide-[#ede8de] text-xs">
                 {products.map((prod) => {
-                  const hasImage = prod.imageUrl || (JSON.parse(prod.images || '[]').length > 0)
-                  const coverImage = prod.imageUrl || JSON.parse(prod.images || '[]')[0] || '/images/paraglow-favicon-512.png'
+                  const coverImage = prod.imageUrl || resolveProductImage(prod.images)
+                  const hasImage = !!coverImage
 
                   return (
                     <tr key={prod.id} className="hover:bg-[#FBF6EC]/10 transition-colors">
@@ -223,7 +239,7 @@ export default function CorbeillePage() {
                       <td className="py-3.5 px-3">
                         <div className="relative w-11 h-11 border border-[#eadfca] rounded-lg overflow-hidden bg-white flex items-center justify-center shadow-3xs">
                           {hasImage ? (
-                            <img src={coverImage} alt={prod.name} className="object-contain w-full h-full p-0.5" />
+                            <ProductImage src={coverImage} alt={prod.name} fill sizes="44px" className="object-contain p-0.5" />
                           ) : (
                             <ImageIcon className="w-5 h-5 text-[#eadfca]" />
                           )}

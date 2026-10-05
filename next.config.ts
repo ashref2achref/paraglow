@@ -2,27 +2,41 @@ import type { NextConfig } from 'next'
 import createNextIntlPlugin from 'next-intl/plugin'
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qgawickfkqtvcvchgfep.supabase.co'
+const supabaseHostname = new URL(supabaseUrl).hostname
+const scriptSrc = process.env.NODE_ENV === 'development'
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.whatsapp.com"
+  : "script-src 'self' 'unsafe-inline' https://*.whatsapp.com"
+
+const csp = [
+  "default-src 'self'",
+  scriptSrc,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  `img-src 'self' data: blob: https://${supabaseHostname} https://*.whatsapp.com https://wa.me`,
+  "font-src 'self' https://fonts.gstatic.com data:",
+  `connect-src 'self' https://${supabaseHostname} wss://${supabaseHostname} https://*.whatsapp.com`,
+  "frame-src 'self' https://*.whatsapp.com https://wa.me https://maps.google.com https://*.google.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join('; ')
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    root: __dirname,
-  },
-  // Exclude native Node modules from bundling (better-sqlite3 uses .node binaries)
+  turbopack: { root: __dirname },
   serverExternalPackages: [
-    'better-sqlite3',
-    '@prisma/adapter-better-sqlite3',
     '@prisma/client',
     'prisma',
     'bcryptjs',
-    'xlsx',
     'csv-parse',
+    'exceljs',
     'sharp',
   ],
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'qgawickfkqtvcvchgfep.supabase.co',
+        hostname: supabaseHostname,
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
@@ -32,8 +46,6 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Le service worker admin doit toujours être re-téléchargé (jamais mis
-        // en cache par le navigateur) et autorisé à contrôler le scope /admin.
         source: '/admin-sw.js',
         headers: [
           { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
@@ -42,34 +54,24 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/sw.js',
+        headers: [
+          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+      {
         source: '/:path*',
         headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.whatsapp.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://qgawickfkqtvcvchgfep.supabase.co https://*.whatsapp.com https://wa.me; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://qgawickfkqtvcvchgfep.supabase.co wss://qgawickfkqtvcvchgfep.supabase.co https://*.whatsapp.com; frame-src 'self' https://*.whatsapp.com https://wa.me https://maps.google.com https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self';"
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN'
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff'
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin'
-          },
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains; preload'
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()'
-          }
-        ]
-      }
+          { key: 'Content-Security-Policy', value: csp },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
     ]
   },
 }

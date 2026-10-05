@@ -8,7 +8,7 @@ export interface MediaSlot {
 
 export const MEDIA_SLOTS: MediaSlot[] = [
   // ── Accueil ──
-  { key: 'home.hero', label: 'Image Hero — page d\'accueil', page: 'home', recommended: '1400×1000 paysage', acceptVideo: true },
+  { key: 'home.hero', label: 'Média Hero — page d\'accueil', page: 'home', recommended: '1400×1000 paysage', acceptVideo: true },
   { key: 'home.univers.beaute', label: 'Univers Beauté', page: 'home', recommended: '600×800 portrait/carré' },
   { key: 'home.univers.sante', label: 'Univers Santé', page: 'home', recommended: '600×800 portrait/carré' },
   { key: 'home.univers.bebe', label: 'Univers Bébé & Maman', page: 'home', recommended: '600×800 portrait/carré' },

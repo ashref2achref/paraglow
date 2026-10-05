@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import ClearHistoryButton from '@/components/admin/ClearHistoryButton'
 import Link from 'next/link'
@@ -21,9 +21,17 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import Modal from '@/components/ui/Modal'
-import { exportToExcel } from '@/lib/excelExport'
 import { TUNISIAN_GOVERNORATES } from '@/lib/governorates'
+
+interface PartnerSummary {
+  id: string
+  name: string
+  type?: string
+  discountType?: string
+  discountValue?: number
+}
 
 interface Customer {
   id: string
@@ -35,10 +43,34 @@ interface Customer {
   wilaya?: string | null
   notes?: string | null
   partnerId?: string | null
+  partnerName?: string | null
   createdAt: string
   totalSpent: number
   ordersCount: number
   lastOrderDate?: string | null
+}
+
+function getCustomerSegment(customer: Customer) {
+  if (customer.ordersCount === 0) {
+    return { label: 'Prospect', className: 'bg-gray-50 text-gray-600 border-gray-200' }
+  }
+
+  if (customer.lastOrderDate) {
+    const daysSinceLastOrder = (Date.now() - new Date(customer.lastOrderDate).getTime()) / 86_400_000
+    if (daysSinceLastOrder > 90) {
+      return { label: 'À réactiver', className: 'bg-amber-50 text-amber-700 border-amber-200' }
+    }
+  }
+
+  if (customer.ordersCount >= 10 || customer.totalSpent >= 1000) {
+    return { label: 'VIP', className: 'bg-[#153f2b] text-white border-[#153f2b]' }
+  }
+
+  if (customer.ordersCount >= 5 || customer.totalSpent >= 500) {
+    return { label: 'Fidèle', className: 'bg-[#c9a052]/10 text-[#9a762d] border-[#c9a052]/25' }
+  }
+
+  return { label: 'Actif', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
 }
 
 interface ClientLog {
@@ -118,6 +150,7 @@ export default function ClientsPage() {
 
   // Search & Filter states
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 320)
   const [sort, setSort] = useState('nameAsc')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -143,7 +176,7 @@ export default function ClientsPage() {
   const [savingProfile, setSavingProfile] = useState(false)
 
   // Partners list
-  const [partners, setPartners] = useState<any[]>([])
+  const [partners, setPartners] = useState<PartnerSummary[]>([])
 
   // Inline confirmations
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
@@ -170,13 +203,13 @@ export default function ClientsPage() {
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   // Fetch Customers List
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     setLoading(true)
     try {
       const q = new URLSearchParams({
         page: String(page),
         limit: '20',
-        search,
+        search: debouncedSearch,
         sort
       })
 
@@ -192,16 +225,16 @@ export default function ClientsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, debouncedSearch, sort])
 
   // Fetch trashed clients count for the Corbeille badge
-  const fetchTrashCount = async () => {
+  const fetchTrashCount = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/customers/trash')
       const data = await res.json()
       if (res.ok) setTrashCount(data.customers?.length || 0)
     } catch {}
-  }
+  }, [])
 
   // Fetch Client History Logs
   const fetchHistoryLogs = async (p = 1) => {
@@ -272,7 +305,7 @@ export default function ClientsPage() {
         return
       }
 
-      const rows = data.customers.map((c: any) => ({
+      const rows = (data.customers as Customer[]).map((c) => ({
         fullName: `${c.prenom} ${c.nom}`,
         phone: c.phone,
         email: c.email || 'Non renseigné',
@@ -280,11 +313,12 @@ export default function ClientsPage() {
         ordersCount: c.ordersCount,
         totalSpent: c.totalSpent,
         lastOrder: c.lastOrderDate ? new Date(c.lastOrderDate).toLocaleDateString('fr-FR') : 'Aucune',
-        partner: c.partner?.name || 'Aucun',
+        partner: c.partnerName || 'Aucun',
         notes: c.notes || '',
         createdAt: new Date(c.createdAt).toLocaleDateString('fr-FR'),
       }))
 
+      const { exportToExcel } = await import('@/lib/excelExport')
       await exportToExcel({
         filename: `clients_paraglow_${new Date().toISOString().split('T')[0]}`,
         sheets: [
@@ -314,7 +348,7 @@ export default function ClientsPage() {
   }
 
   // Fetch single Client Profile Detail
-  const fetchCustomerProfile = async (id: string) => {
+  const fetchCustomerProfile = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/admin/customers/${id}`)
       const data = await res.json()
@@ -327,9 +361,9 @@ export default function ClientsPage() {
     } catch {
       toast.error('Erreur lors du chargement de la fiche client')
     }
-  }
+  }, [])
 
-  const fetchPartners = async () => {
+  const fetchPartners = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/partners')
       const data = await res.json()
@@ -337,7 +371,7 @@ export default function ClientsPage() {
         setPartners(data.partners || [])
       }
     } catch {}
-  }
+  }, [])
 
   // Open Edit Modal
   const openEditModal = (c: Customer) => {
@@ -415,20 +449,24 @@ export default function ClientsPage() {
 
   // Trigger loads
   useEffect(() => {
-    fetchCustomers()
-    fetchPartners()
-  }, [page, search, sort])
+    const timer = window.setTimeout(() => {
+      void fetchCustomers()
+      void fetchPartners()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchCustomers, fetchPartners])
 
   useEffect(() => {
-    fetchTrashCount()
-  }, [])
+    const timer = window.setTimeout(() => void fetchTrashCount(), 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchTrashCount])
 
   // Check deeplink on mount
   useEffect(() => {
-    if (urlId) {
-      fetchCustomerProfile(urlId)
-    }
-  }, [urlId])
+    if (!urlId) return
+    const timer = window.setTimeout(() => void fetchCustomerProfile(urlId), 0)
+    return () => window.clearTimeout(timer)
+  }, [urlId, fetchCustomerProfile])
 
   // Reset filters
   const resetFilters = () => {
@@ -459,7 +497,7 @@ export default function ClientsPage() {
               {totalCount}
             </span>
           </div>
-          <p className="text-xs text-[#6b5f4f]/80 mt-1">Gérez la base client CRM, visualisez l'historique complet des achats et les statistiques de fidélité.</p>
+          <p className="text-xs text-[#6b5f4f]/80 mt-1">Gérez la base client CRM, visualisez l&apos;historique complet des achats et les statistiques de fidélité.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -575,6 +613,7 @@ export default function ClientsPage() {
               </thead>
               <tbody>
                 {customers.map((c) => {
+                  const segment = getCustomerSegment(c)
                   return (
                     <tr key={c.id} className="border-b border-[#eadfca]/40 hover:bg-[#FBF6EC]/25 transition-colors">
                       <td className="p-4 font-semibold text-[#153f2b] flex items-center gap-2">
@@ -583,6 +622,9 @@ export default function ClientsPage() {
                         </div>
                         <div>
                           <span>{c.prenom} {c.nom}</span>
+                          <span className={'ml-1.5 px-1.5 py-0.5 border rounded-full text-[8px] font-bold uppercase tracking-wider ' + segment.className}>
+                            {segment.label}
+                          </span>
                           {c.notes && (
                             <span className="ml-1.5 px-1.5 py-0.2 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[9px] font-bold" title={c.notes}>
                               Note
@@ -646,6 +688,7 @@ export default function ClientsPage() {
           {/* Mobile Cards View */}
           <div className="block md:hidden space-y-4">
             {customers.map((c) => {
+              const segment = getCustomerSegment(c)
               return (
                 <div key={c.id} className="p-4 bg-white border border-[#eadfca] rounded-2xl space-y-3 relative shadow-3xs text-left">
                   <div className="flex items-center gap-3">
@@ -661,7 +704,12 @@ export default function ClientsPage() {
                           </span>
                         )}
                       </h4>
-                      <div className="text-[10px] text-[#6b5f4f] font-mono mt-0.5">{c.phone}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={'px-1.5 py-0.5 border rounded-full text-[8px] font-bold uppercase tracking-wider ' + segment.className}>
+                          {segment.label}
+                        </span>
+                        <div className="text-[10px] text-[#6b5f4f] font-mono">{c.phone}</div>
+                      </div>
                     </div>
                   </div>
 
@@ -1149,7 +1197,7 @@ export default function ClientsPage() {
 
           <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
             {historyLogs.length === 0 ? (
-              <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l'historique des clients.</div>
+              <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l&apos;historique des clients.</div>
             ) : (
               historyLogs.map((log) => (
                 <div key={log.id} className="p-4 border border-[#eadfca] rounded-xl bg-[#faf8f5] space-y-2 hover:border-[#c9a052]/30 transition-all text-left">
@@ -1188,7 +1236,7 @@ export default function ClientsPage() {
       >
         <div className="space-y-4 text-xs text-left text-[#2a1f0e]">
           <p className="leading-relaxed">
-            Êtes-vous sûr de vouloir mettre le client <strong className="text-[#153f2b]">"{selectedDetails?.prenom} {selectedDetails?.nom}"</strong> à la corbeille ? Ses informations CRM seront archivées.
+            Êtes-vous sûr de vouloir mettre le client <strong className="text-[#153f2b]">&quot;{selectedDetails?.prenom} {selectedDetails?.nom}&quot;</strong> à la corbeille ? Ses informations CRM seront archivées.
           </p>
           <div className="flex justify-end gap-2 pt-2 border-t border-[#eadfca]/40">
             <button

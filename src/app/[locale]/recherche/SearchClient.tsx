@@ -14,6 +14,7 @@ import { resolveProductImage } from '@/lib/productImage'
 import ProductCard from '@/components/catalogue/ProductCard'
 import ProductPagination from '@/components/catalogue/ProductPagination'
 import type { Product, Category } from '@/components/catalogue/types'
+import { localizedPath } from '@/lib/localizedPath'
 
 interface SearchClientProps {
   locale: string
@@ -52,9 +53,10 @@ export default function SearchClient({ locale, initialQuery }: SearchClientProps
   const [page, setPage] = useState<number>(() => parseInt(searchParams.get('page') || '1'))
   const [limit, setLimit] = useState<number>(() => parseInt(searchParams.get('limit') || '30'))
 
-  // Reset to first page whenever the query changes
+  // Reset to first page whenever the query changes, after the current render commits.
   useEffect(() => {
-    setPage(1)
+    const timer = window.setTimeout(() => setPage(1), 0)
+    return () => window.clearTimeout(timer)
   }, [query])
 
   // Fetch category pills once (for the empty state refinement)
@@ -103,7 +105,8 @@ export default function SearchClient({ locale, initialQuery }: SearchClientProps
   }, [query, sort, page, limit])
 
   useEffect(() => {
-    fetchResults()
+    const timer = window.setTimeout(() => fetchResults(), 0)
+    return () => window.clearTimeout(timer)
   }, [fetchResults])
 
   // Cart / wishlist handlers (shared behaviour with the catalogue)
@@ -132,7 +135,7 @@ export default function SearchClient({ locale, initialQuery }: SearchClientProps
       image: productImage,
       code: product.code || '',
     })
-    router.push(`/${locale}/panier`)
+    router.push(localizedPath(locale, '/panier'))
   }
 
   const handleToggleWishlist = (product: Product) => {
@@ -268,8 +271,8 @@ export default function SearchClient({ locale, initialQuery }: SearchClientProps
                     return (
                       <Link
                         key={cat.id}
-                        href={`/${locale}/catalogue?category=${cat.slug}`}
-                        className="px-4 py-1.5 rounded-full bg-white border border-[#c9a052]/20 hover:bg-[#c9a052]/10 text-xs font-semibold text-[#153f2b] transition-all"
+                        href={`${localizedPath(locale, '/catalogue')}?category=${cat.slug}`}
+                        className="px-4 py-1.5 rounded-full bg-white border border-[#c9a052]/20 hover:bg-[#c9a052]/10 text-xs font-semibold text-[#153f2b] transition-colors duration-150"
                       >
                         {catName}
                       </Link>
@@ -280,7 +283,7 @@ export default function SearchClient({ locale, initialQuery }: SearchClientProps
             )}
 
             <Link
-              href={`/${locale}/catalogue`}
+              href={localizedPath(locale, '/catalogue')}
               className="mt-8 px-6 py-2.5 bg-[#153f2b] text-white text-sm font-semibold rounded-xl hover:bg-[#c9a052] transition-colors"
             >
               {t('viewFullCatalogue')}
@@ -289,11 +292,10 @@ export default function SearchClient({ locale, initialQuery }: SearchClientProps
         ) : (
           <div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-5 w-full">
-              {products.map((product, idx) => (
+              {products.map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product}
-                  index={idx}
                   locale={locale}
                   isInWishlist={isInWishlist(product.id)}
                   onAddToCart={() => handleAddToCart(product)}

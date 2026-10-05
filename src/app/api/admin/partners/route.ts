@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({ partner }, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Partner POST error:', error)
     console.error('Partner POST error:', error);
     return NextResponse.json({ error: 'Erreur lors de la création du partenaire' }, { status: 500 })

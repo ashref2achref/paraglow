@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { Download, Share, MoreVertical, X } from 'lucide-react'
 
 /**
@@ -36,18 +35,18 @@ export default function InstallPWAButton() {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    // Déjà installée ? (standalone sur desktop/Android, navigator.standalone sur iOS)
     const nav = window.navigator as Navigator & { standalone?: boolean }
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true
-    setIsStandalone(standalone)
-
-    // Détection iOS (iPhone/iPad/iPod + iPadOS qui se présente comme un Mac tactile)
     const ua = window.navigator.userAgent
     const iOS =
       /iPad|iPhone|iPod/.test(ua) ||
       (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1)
-    setIsIOS(iOS)
+
+    const initialStateTimer = window.setTimeout(() => {
+      setIsStandalone(standalone)
+      setIsIOS(iOS)
+    }, 0)
 
     const onBeforeInstall = (e: Event) => {
       // Empêche la mini-infobar native pour piloter notre propre bouton
@@ -62,6 +61,7 @@ export default function InstallPWAButton() {
     window.addEventListener('beforeinstallprompt', onBeforeInstall)
     window.addEventListener('appinstalled', onInstalled)
     return () => {
+      window.clearTimeout(initialStateTimer)
       window.removeEventListener('beforeinstallprompt', onBeforeInstall)
       window.removeEventListener('appinstalled', onInstalled)
     }
@@ -96,15 +96,8 @@ export default function InstallPWAButton() {
       </button>
 
       {/* Instructions manuelles (iOS Safari, ou navigateur sans prompt natif) */}
-      <AnimatePresence>
-        {showHint && (
-          <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute top-full end-0 mt-2 w-72 rounded-xl bg-white shadow-lg border border-[#c9a052]/20 p-3 z-[70]"
-          >
+      {showHint && (
+          <div className="absolute top-full end-0 mt-2 w-72 rounded-xl bg-white shadow-lg border border-[#c9a052]/20 p-3 z-[70] pwa-install-popover">
             <div className="flex items-start gap-2.5">
               <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#1b3a1e]/5 flex items-center justify-center text-[#1b3a1e]">
                 {isIOS ? (
@@ -127,9 +120,8 @@ export default function InstallPWAButton() {
                 <X className="w-3.5 h-3.5" strokeWidth={2} />
               </button>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+      )}
     </div>
   )
 }

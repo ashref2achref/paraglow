@@ -14,6 +14,7 @@ import Modal from '@/components/ui/Modal'
 import ProductCard from '@/components/catalogue/ProductCard'
 import ProductPagination from '@/components/catalogue/ProductPagination'
 import type { Product, Category, Brand } from '@/components/catalogue/types'
+import { localizedPath } from '@/lib/localizedPath'
 
 interface CatalogueClientProps {
   locale: string
@@ -29,13 +30,13 @@ interface CatalogueClientProps {
 // Skeletons count
 const SKELETON_COUNT = 12
 
-export default function CatalogueClient({ locale, initialSearchParams, initialProducts, initialTotal, initialPage, initialTotalPages, initialCategories, initialBrands }: CatalogueClientProps) {
+export default function CatalogueClient({ locale, initialProducts, initialTotal, initialCategories, initialBrands }: CatalogueClientProps) {
   // Track whether initial SSR data was provided (skip first client fetch if so)
   const hasSSRData = initialProducts !== undefined && initialProducts.length >= 0
   const t = useTranslations('catalogue')
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
 
   // Zustand Store selectors
   const cartAddItem = useCartStore((s) => s.addItem)
@@ -49,8 +50,8 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
   )
 
   // Core Data States — initialized with SSR data when available
-  const [products, setProducts] = useState<Product[]>(initialProducts ?? [])
-  const [total, setTotal] = useState(initialTotal ?? 0)
+  const products = initialProducts ?? []
+  const total = initialTotal ?? 0
   const [loading, setLoading] = useState(!hasSSRData)
   const [loadError, setLoadError] = useState('')
   const [categories, setCategories] = useState<Category[]>(initialCategories ?? [])
@@ -87,13 +88,6 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
     return () => clearTimeout(timer)
   }, [searchInput, searchQuery])
 
-  // Sync search input when searchQuery changes externally (e.g. filter reset)
-  useEffect(() => {
-    if (searchQuery !== searchInput) {
-      setSearchInput(searchQuery)
-    }
-  }, [searchQuery])
-
   // Internal visual UI states
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
   const [tempMinPrice, setTempMinPrice] = useState(minPrice)
@@ -122,8 +116,9 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
     fetchMetadata()
   }, [hasSSRData])
 
-  // Sync URL Query Parameters
-  const syncParamsAndFetch = useCallback(() => {
+  // Sync URL Query Parameters. Product data comes back once through the
+  // Server Component navigation; no duplicate API request is fired.
+  const syncParamsAndNavigate = useCallback(() => {
     setLoading(true)
     setLoadError('')
     const params = new URLSearchParams()
@@ -138,52 +133,30 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
     if (maxPrice) params.set('maxPrice', maxPrice)
     if (searchQuery) params.set('search', searchQuery)
 
-    // Update browser URL
     const queryString = params.toString()
     startTransition(() => {
-      router.push(`/${locale}/catalogue${queryString ? `?${queryString}` : ''}`, { scroll: false })
+      router.push(`${localizedPath(locale, '/catalogue')}${queryString ? `?${queryString}` : ''}`, { scroll: false })
     })
-
-    // Fetch Products from extended API
-    fetch(`/api/products?${params.toString()}`)
-      .then((res) => {
-        if (!res.ok) throw new Error('products_fetch_failed')
-        return res.json()
-      })
-      .then((data) => {
-        setProducts(data.products || [])
-        setTotal(data.total || 0)
-        setLoading(false)
-      })
-      .catch((err) => {
-        console.error('Error loading products:', err)
-        setProducts([])
-        setTotal(0)
-        setLoadError(locale === 'ar' ? 'تعذر تحميل المنتجات.' : locale === 'en' ? 'Unable to load products.' : 'Impossible de charger les produits.')
-        setLoading(false)
-      })
   }, [locale, selectedCategories, selectedBrands, sort, page, limit, inStock, minPrice, maxPrice, searchQuery, router])
 
-  // Trigger search and sync when inputs change
-  // Skip the very first call when SSR data is already provided
+  // Trigger navigation when filters change. Skip the first render because SSR
+  // already supplied the correct catalogue payload.
   const isFirstRender = useRef(hasSSRData)
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
       return
     }
-    syncParamsAndFetch()
-  }, [syncParamsAndFetch])
+    syncParamsAndNavigate()
+  }, [syncParamsAndNavigate])
 
-  // Sync temp state with filters when Drawer opens
-  useEffect(() => {
-    if (isFilterDrawerOpen) {
-      setTempMinPrice(minPrice)
-      setTempMaxPrice(maxPrice)
-      setTempSelectedBrands(selectedBrands)
-      setTempInStock(inStock)
-    }
-  }, [isFilterDrawerOpen, minPrice, maxPrice, selectedBrands, inStock])
+  const openFilterDrawer = () => {
+    setTempMinPrice(minPrice)
+    setTempMaxPrice(maxPrice)
+    setTempSelectedBrands(selectedBrands)
+    setTempInStock(inStock)
+    setIsFilterDrawerOpen(true)
+  }
 
   // Add Item to Cart
   const handleAddToCart = (product: Product) => {
@@ -213,7 +186,7 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
       image: productImage,
       code: product.code || '',
     })
-    router.push(`/${locale}/panier`)
+    router.push(localizedPath(locale, '/panier'))
   }
 
   // Toggle wishlist item
@@ -255,6 +228,7 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
     setMaxPrice('')
     setInStock(false)
     setSearchQuery('')
+    setSearchInput('')
     setPage(1)
     setIsFilterDrawerOpen(false)
   }
@@ -331,7 +305,7 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
           {/* Left: Advanced Filters Button */}
           <button
             type="button"
-            onClick={() => setIsFilterDrawerOpen(true)}
+            onClick={openFilterDrawer}
             className="flex items-center gap-2 px-4 py-2 border border-[#c9a052]/20 hover:border-[#c9a052] rounded-xl text-xs sm:text-sm font-semibold hover:bg-[#FBF6EC]/30 transition-all cursor-pointer relative"
           >
             <SlidersHorizontal className="w-4 h-4 text-[#c9a052]" />
@@ -468,8 +442,8 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
             {/* Search query */}
             {searchQuery && (
               <span className="inline-flex items-center gap-1 bg-white border border-[#c9a052]/20 px-3 py-1 rounded-full text-xs font-medium">
-                {t('searchPrefix')}"{searchQuery}"
-                <button type="button" onClick={() => { setSearchQuery(''); setPage(1) }} className="hover:text-[#c9a052] cursor-pointer">
+                {t('searchPrefix')}&quot;{searchQuery}&quot;
+                <button type="button" onClick={() => { setSearchQuery(''); setSearchInput(''); setPage(1) }} className="hover:text-[#c9a052] cursor-pointer">
                   <X className="w-3 h-3" />
                 </button>
               </span>
@@ -519,7 +493,7 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
             <h3 className="font-serif text-xl font-semibold text-[#153f2b]">{loadError}</h3>
             <button
               type="button"
-              onClick={syncParamsAndFetch}
+              onClick={syncParamsAndNavigate}
               className="mt-6 px-6 py-2.5 bg-[#153f2b] text-white text-sm font-semibold rounded-xl hover:bg-[#c9a052] transition-colors cursor-pointer"
             >
               {locale === 'ar' ? 'إعادة المحاولة' : locale === 'en' ? 'Retry' : 'Réessayer'}
@@ -561,11 +535,10 @@ export default function CatalogueClient({ locale, initialSearchParams, initialPr
           /* Real Products Grid */
           <div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-5 w-full">
-              {products.map((product, idx) => (
+              {products.map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product}
-                  index={idx}
                   locale={locale}
                   isInWishlist={isInWishlist(product.id)}
                   onAddToCart={() => handleAddToCart(product)}

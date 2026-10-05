@@ -1,39 +1,37 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import {
+  getVerifiedClaimsCached,
+  type VerifiedAuthClaims,
+} from '@/lib/adminAuthCache'
 
 export async function checkAdminAuth(request?: NextRequest | Request): Promise<boolean> {
+  void request
+
   try {
     const supabase = await createClient()
-    const { data: { user }, error } = await supabase.auth.getUser()
 
-    if (error || !user) {
-      console.warn('[checkAdminAuth] No user found or auth error:', error?.message)
-      return false
-    }
+    // The raw session is only an opaque token source for the cache key.
+    // A cache miss always goes through verified getClaims().
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData.session?.access_token
 
-    const role = user.user_metadata?.role || user.app_metadata?.role
-    if (role !== 'ADMIN') {
-      console.warn(`[checkAdminAuth] Access denied: User has role "${role}", expected "ADMIN"`)
-      return false
-    }
+    if (!token) return false
 
-    return true
+    const claims = await getVerifiedClaimsCached(
+      token,
+      sessionData.session?.expires_at,
+      async () => {
+        const { data, error } = await supabase.auth.getClaims()
+        return !error && data?.claims
+          ? (data.claims as VerifiedAuthClaims)
+          : null
+      }
+    )
+
+    return claims?.app_metadata?.role === 'ADMIN'
   } catch (err) {
-    console.error('[checkAdminAuth] Auth check failed:', err)
+    console.error('[checkAdminAuth] Auth verification failed:', err)
     return false
   }
 }
-
-// Keep placeholders for backward compatibility
-export function verifyAdminSessionToken(token: string | undefined) {
-  return false
-}
-
-export function createAdminSessionToken() {
-  return ''
-}
-
-export function setAdminSessionCookie(response: any, token: string) {}
-
-export function clearAdminSessionCookie(response: any) {}
-

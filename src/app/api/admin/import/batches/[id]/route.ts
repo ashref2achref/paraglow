@@ -6,10 +6,8 @@ import { purgeOrphans } from '@/lib/purgeOrphans'
 
 export const dynamic = 'force-dynamic'
 
-// SQLite rejects a single query with too many bound parameters. An `IN (...)` clause
-// binds one parameter per id, so a batch import large enough to create tens of
-// thousands of products (exactly what Chantier 7A enables) can exceed that limit when
-// undoing the whole import at once. Chunking keeps every individual query well under it.
+// Keep bulk undo/delete queries bounded so parameter lists remain predictable
+// and database work stays manageable even when older batches contain many products.
 const ID_CHUNK_SIZE = 500
 
 function chunk<T>(items: T[], size: number): T[][] {

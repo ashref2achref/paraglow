@@ -1,10 +1,33 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
+import { buildLocalizedMetadata, normalizeSeoLocale } from '@/lib/seo'
+
+const CATALOGUE_SEO = {
+  fr: {
+    title: 'Catalogue ParaGlow — Soins & parapharmacie',
+    description: 'Parcourez le catalogue ParaGlow et trouvez vos soins visage, corps, cheveux, bébé, solaire et bien-être.',
+  },
+  en: {
+    title: 'ParaGlow Catalogue — Beauty & parapharmacy',
+    description: 'Browse ParaGlow products for skincare, body care, hair care, baby, sun care and wellness.',
+  },
+  ar: {
+    title: 'كتالوج ParaGlow — العناية والبارافارماسي',
+    description: 'تصفحوا منتجات ParaGlow للعناية بالبشرة والجسم والشعر والأطفال والحماية من الشمس والرفاه.',
+  },
+} as const
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: requestedLocale } = await params
+  const locale = normalizeSeoLocale(requestedLocale) as keyof typeof CATALOGUE_SEO
+  return buildLocalizedMetadata({ locale, path: '/catalogue', ...CATALOGUE_SEO[locale] })
+}
+
 import CatalogueClient from './CatalogueClient'
 import Container from '@/components/ui/Container'
 import { Leaf } from 'lucide-react'
 import prisma from '@/lib/prisma'
-import { computeDisplayPrice } from '@/lib/productPricing'
-import type { Prisma } from '@prisma/client'
+import { findPublicProductPage, hydratePublicProducts } from '@/lib/publicProductQuery'
 
 // ── Loading skeleton (shown during SSR streaming) ──
 function CatalogueLoadingSkeleton() {
@@ -55,94 +78,44 @@ function CatalogueLoadingSkeleton() {
   )
 }
 
-// ── Helper: reproduce the same product query logic as /api/products ──
+// ── Shared public product query: one DB-side source of truth for filtering/sorting ──
 function parseBoundedInt(value: string | string[] | undefined, fallback: number, min: number, max: number) {
   const parsed = Number.parseInt(String(value || ''), 10)
   if (!Number.isFinite(parsed)) return fallback
   return Math.min(Math.max(parsed, min), max)
 }
 
+function parseFiniteNumber(value: string | string[] | undefined) {
+  const parsed = Number.parseFloat(String(value || ''))
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 async function fetchCatalogueData(searchParams: Record<string, string | string[] | undefined>) {
   const page = parseBoundedInt(searchParams.page, 1, 1, 100000)
   const limit = parseBoundedInt(searchParams.limit, 30, 1, 100)
-  const skip = (page - 1) * limit
-
-  const categoryParam = typeof searchParams.category === 'string' ? searchParams.category : ''
-  const brandParam = typeof searchParams.brand === 'string' ? searchParams.brand : ''
-  const search = typeof searchParams.search === 'string' ? searchParams.search : ''
+  const categorySlugs = typeof searchParams.category === 'string'
+    ? searchParams.category.split(',').map((value) => value.trim()).filter(Boolean)
+    : []
+  const brandSlugs = typeof searchParams.brand === 'string'
+    ? searchParams.brand.split(',').map((value) => value.trim()).filter(Boolean)
+    : []
+  const search = typeof searchParams.search === 'string' ? searchParams.search.trim().slice(0, 120) : ''
   const sort = typeof searchParams.sort === 'string' ? searchParams.sort : 'popular'
-  const inStock = searchParams.inStock === 'true'
-  const minPrice = parseFloat(String(searchParams.minPrice || ''))
-  const maxPrice = parseFloat(String(searchParams.maxPrice || ''))
+  const minPrice = parseFiniteNumber(searchParams.minPrice)
+  const maxPrice = parseFiniteNumber(searchParams.maxPrice)
 
-  // Build where clause
-  const where: Prisma.ProductWhereInput = { isActive: true, supprime: false }
-
-  if (categoryParam) {
-    const categorySlugs = categoryParam.split(',').filter(Boolean)
-    if (categorySlugs.length > 0) {
-      where.category = { slug: { in: categorySlugs } }
-    }
-  }
-
-  if (brandParam) {
-    const brandSlugs = brandParam.split(',').filter(Boolean)
-    if (brandSlugs.length > 0) {
-      where.brand = { slug: { in: brandSlugs } }
-    }
-  }
-
-  if (search) {
-    where.OR = [
-      { name: { contains: search } },
-      { nameAr: { contains: search } },
-      { nameEn: { contains: search } },
-      { description: { contains: search } },
-      { descriptionAr: { contains: search } },
-      { descriptionEn: { contains: search } },
-      { code: { contains: search } },
-      { brand: { name: { contains: search } } },
-      { category: { name: { contains: search } } },
-      { category: { nameAr: { contains: search } } },
-      { category: { nameEn: { contains: search } } },
-    ]
-  }
-
-  if (inStock) {
-    where.stock = { gt: 0 }
-  }
-
-  if (!isNaN(minPrice) || !isNaN(maxPrice)) {
-    const priceFilter: Prisma.FloatFilter<'Product'> = {}
-    if (!isNaN(minPrice)) priceFilter.gte = minPrice
-    if (!isNaN(maxPrice)) priceFilter.lte = maxPrice
-    where.sellingPriceTTC = priceFilter
-  }
-
-  // Sort
-  let orderBy: Prisma.ProductOrderByWithRelationInput[] = []
-  if (sort === 'priceAsc') orderBy = [{ sellingPriceTTC: 'asc' }]
-  else if (sort === 'priceDesc') orderBy = [{ sellingPriceTTC: 'desc' }]
-  else if (sort === 'newest') orderBy = [{ createdAt: 'desc' }]
-  else if (sort === 'nameAsc') orderBy = [{ name: 'asc' }]
-  else if (sort === 'nameDesc') orderBy = [{ name: 'desc' }]
-  else orderBy = [{ isBestSeller: 'desc' }, { isFeatured: 'desc' }, { createdAt: 'desc' }]
-
-  // Fetch products, categories, brands in parallel
-  const [productsRaw, total, categories, brands] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy,
-      skip,
-      take: limit,
-      include: {
-        brand: { select: { name: true, slug: true } },
-        category: { select: { name: true, nameAr: true, nameEn: true, slug: true } },
-        reviews: { where: { isApproved: true }, select: { rating: true } },
-        _count: { select: { reviews: true } },
-      },
+  const [pageResult, categories, brands] = await Promise.all([
+    findPublicProductPage({
+      categorySlugs,
+      brandSlugs,
+      search,
+      sort,
+      page,
+      limit,
+      inStock: searchParams.inStock === 'true',
+      minPrice,
+      maxPrice,
     }),
-    prisma.product.count({ where }),
     prisma.category.findMany({
       where: {
         isActive: true,
@@ -170,33 +143,16 @@ async function fetchCatalogueData(searchParams: Record<string, string | string[]
     }),
   ])
 
-  // Post-process products (same logic as /api/products)
-  const products = productsRaw.map((product) => {
-    const approvedReviews = product.reviews || []
-    const avgRating = approvedReviews.length > 0
-      ? parseFloat((approvedReviews.reduce((sum, r) => sum + r.rating, 0) / approvedReviews.length).toFixed(1))
-      : 0
+  const products = await hydratePublicProducts(pageResult.ids)
 
-    const { reviews, ...rest } = product
-    const displayPrice = computeDisplayPrice(product)
-
-    // Exclude sensitive commercial fields from the client output
-    const cleanProduct: any = { ...rest }
-    delete cleanProduct.purchasePriceHT
-    delete cleanProduct.margin
-    delete cleanProduct.sellingPriceHT
-
-    return {
-      ...cleanProduct,
-      rating: avgRating,
-      reviewsCount: approvedReviews.length,
-      originalPrice: displayPrice.originalPrice,
-      discountPercentage: displayPrice.discountPercentage,
-      sellingPriceTTC: displayPrice.finalPrice,
-    }
-  })
-
-  return { products, total, page, totalPages: Math.ceil(total / limit), categories, brands }
+  return {
+    products,
+    total: pageResult.total,
+    page,
+    totalPages: Math.ceil(pageResult.total / limit),
+    categories,
+    brands,
+  }
 }
 
 // ── Server Component: pre-loads data, passes to client ──
@@ -221,6 +177,7 @@ export default async function CataloguePage({
   return (
     <Suspense fallback={<CatalogueLoadingSkeleton />}>
       <CatalogueClient
+        key={JSON.stringify(resolvedSearchParams)}
         locale={locale}
         initialSearchParams={resolvedSearchParams}
         initialProducts={JSON.parse(JSON.stringify(initialData.products))}

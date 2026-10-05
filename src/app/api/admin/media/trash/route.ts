@@ -5,6 +5,7 @@ import { MEDIA_SLOTS } from '@/config/mediaSlots'
 import { revalidatePath } from 'next/cache'
 import { routing } from '@/i18n/routing'
 import { createClient as createSupabaseServiceClient } from '@supabase/supabase-js'
+import { siteMediaStoragePathFromUrl } from '@/lib/productImageStorage'
 
 const supabase = createSupabaseServiceClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,18 +36,15 @@ async function purgeMediaBulk(ids: string[]) {
 
   if (medias.length === 0) return 0
 
-  // Delete files from Supabase Storage
-  const filenames = medias.map((media) => {
-    const url = media.url
-    if (url.startsWith('http')) {
-      const parts = url.split('/')
-      return parts[parts.length - 1]
-    }
-    return url.replace('/uploads/site/', '')
-  })
+  // Delete files from Supabase Storage. Keep the complete object path
+  // (e.g. videos/foo.mp4), not only the basename.
+  const storagePaths = medias
+    .map((media) => siteMediaStoragePathFromUrl(media.url))
+    .filter((path): path is string => Boolean(path))
 
-  if (filenames.length > 0) {
-    await supabase.storage.from('site-media').remove(filenames)
+  if (storagePaths.length > 0) {
+    const { error } = await supabase.storage.from('site-media').remove(storagePaths)
+    if (error) throw error
   }
 
   // Delete DB records in batch

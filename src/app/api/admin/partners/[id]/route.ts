@@ -52,6 +52,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       partner: {
         ...partner,
         clients: clientsWithStats,
+        clientsCount: clientsWithStats.length,
+        ordersCount: totalOrdersCount,
+        totalSpent: totalSpentCA,
         totalOrdersCount,
         totalSpentCA
       }
@@ -101,7 +104,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
 
     return NextResponse.json({ partner })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Partner PUT error:', error)
     console.error('Partner PUT error:', error);
     return NextResponse.json({ error: 'Erreur lors de la mise à jour du partenaire' }, { status: 500 })
@@ -120,7 +123,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     await prisma.partner.delete({ where: { id } })
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Partner DELETE error:', error)
     console.error('Partner DELETE error:', error);
     return NextResponse.json({ error: 'Erreur lors de la suppression du partenaire' }, { status: 500 })

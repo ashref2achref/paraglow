@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 interface Sparkle {
   id: string
@@ -16,6 +16,11 @@ const DEFAULT_COLORS = {
   second: '#153f2b', // Forest Green
 }
 
+function seededRandom(seed: number) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453
+  return value - Math.floor(value)
+}
+
 export default function Sparkles({
   colors = DEFAULT_COLORS,
   count = 10,
@@ -23,25 +28,27 @@ export default function Sparkles({
   colors?: { first: string; second: string }
   count?: number
 }) {
-  const [sparkles, setSparkles] = useState<Sparkle[]>([])
   const [isIntersecting, setIsIntersecting] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
+  const sparkles = useMemo<Sparkle[]>(() => (
+    Array.from({ length: count }, (_, index) => {
+      const seed = index + count * 31
+      const x = seededRandom(seed + 1)
+      const y = seededRandom(seed + 2)
+      const colorChoice = seededRandom(seed + 3)
+      const size = seededRandom(seed + 4)
+      const delay = seededRandom(seed + 5)
 
-  // Generate stable sparkles on mount
-  useEffect(() => {
-    const list: Sparkle[] = []
-    for (let i = 0; i < count; i++) {
-      list.push({
-        id: `sparkle-${i}`,
-        x: `${Math.random() * 100}%`,
-        y: `${Math.random() * 100}%`,
-        color: Math.random() > 0.4 ? colors.first : colors.second,
-        size: Math.floor(Math.random() * 12) + 10, // 10px to 22px
-        delay: Math.random() * 2, // 0s to 2s
-      })
-    }
-    setSparkles(list)
-  }, [colors, count])
+      return {
+        id: `sparkle-${index}`,
+        x: `${x * 100}%`,
+        y: `${y * 100}%`,
+        color: colorChoice > 0.4 ? colors.first : colors.second,
+        size: Math.floor(size * 12) + 10,
+        delay: delay * 2,
+      }
+    })
+  ), [colors.first, colors.second, count])
 
   // Intersection Observer to pause animation when out of viewport
   useEffect(() => {

@@ -27,11 +27,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { orders, ...promoFields } = promo
 
-    const generatedCA = orders.reduce((sum, o) => sum + o.total, 0)
-    const totalDiscountApplied = orders.reduce((sum, o) => sum + o.promoDiscount, 0)
+    const nonCancelledOrders = orders.filter((o) => o.status !== 'CANCELLED' && !o.supprime)
+    const generatedCA = nonCancelledOrders.reduce((sum, order) => sum + order.total, 0)
+    const totalDiscountApplied = nonCancelledOrders.reduce((sum, order) => sum + order.promoDiscount, 0)
 
-    const nonCancelledOrders = orders.filter((o) => o.status !== 'CANCELLED')
-    const deliveredOrders = orders.filter((o) => o.status === 'DELIVERED')
+    const deliveredOrders = nonCancelledOrders.filter((o) => o.status === 'DELIVERED')
     const deliverySuccessRate = nonCancelledOrders.length > 0
       ? (deliveredOrders.length / nonCancelledOrders.length) * 100
       : null
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Usage per client (grouped by phone, since orders may be guest checkouts without a Client record)
     const usageByClientMap = new Map<string, { phone: string; name: string; count: number }>()
     for (const o of orders) {
-      if (o.status === 'CANCELLED') continue
+      if (o.status === 'CANCELLED' || o.supprime) continue
       const phone = o.guestPhone || o.client?.phone || 'Inconnu'
       const name = o.client ? `${o.client.prenom} ${o.client.nom}` : (o.guestName || 'Client Glow')
       const entry = usageByClientMap.get(phone)
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         usageByClient,
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Promo details GET error:', error)
     console.error('Promo GET error:', error);
     return NextResponse.json({ error: 'Erreur lors de la récupération du code promo' }, { status: 500 })
@@ -151,7 +151,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     return NextResponse.json({ promo })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Promo update error:', error)
     console.error('Promo PUT error:', error);
     return NextResponse.json({ error: 'Erreur lors de la mise à jour du code promo' }, { status: 500 })
@@ -182,7 +182,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     })
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Promo delete error:', error)
     console.error('Promo DELETE error:', error);
     return NextResponse.json({ error: 'Erreur lors de la suppression du code promo' }, { status: 500 })

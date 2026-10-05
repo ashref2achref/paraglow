@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   if (period === 'today') {
     currentStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
     currentEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
-    
+
     prevStart = new Date(currentStart)
     prevStart.setDate(prevStart.getDate() - 1)
     prevEnd = new Date(currentEnd)
@@ -260,7 +260,7 @@ export async function GET(request: NextRequest) {
       }
     })
     const statusCounts: Record<string, number> = {
-      PENDING: 0, CONFIRMED: 0, PREPARING: 0, SHIPPED: 0, DELIVERED: 0, CANCELLED: 0
+      PENDING: 0, CONFIRMED: 0, PREPARING: 0, SHIPPED: 0, OUT_FOR_DELIVERY: 0, DELIVERED: 0, CANCELLED: 0, REFUNDED: 0
     }
     allPeriodOrders.forEach(o => {
       if (statusCounts[o.status] !== undefined) statusCounts[o.status]++
@@ -297,7 +297,7 @@ export async function GET(request: NextRequest) {
         const key = it.productId
         const purchasePrice = it.product?.purchasePriceHT || 0
         const profit = purchasePrice > 0 ? (it.unitPrice - purchasePrice) * it.quantity : 0
-        
+
         let image = null
         try {
           const parsed = JSON.parse(it.product?.images || '[]')
@@ -397,7 +397,7 @@ export async function GET(request: NextRequest) {
         monthlyTarget
       }
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Stats GET error:', error)
     console.error('Stats calculation error:', error);
     return NextResponse.json({ error: 'Erreur serveur lors du calcul des statistiques' }, { status: 500 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import { Leaf } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -27,16 +27,11 @@ export default function ProductImage({
   sizes,
   priority = false,
 }: ProductImageProps) {
-  const [error, setError] = useState(false)
-
-  // Reset error state if the src changes
-  useEffect(() => {
-    setError(false)
-  }, [src])
-
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const resolved = resolveProductImage(src)
+  const hasError = !!resolved && failedSrc === resolved
 
-  if (error || !resolved) {
+  if (hasError || !resolved) {
     return (
       <div 
         className={cn(
@@ -58,7 +53,7 @@ export default function ProductImage({
       height={fill ? undefined : height}
       sizes={sizes}
       priority={priority}
-      onError={() => setError(true)}
+      onError={() => setFailedSrc(resolved)}
       className={cn("object-contain p-2 bg-[#FBF6EC]/30 rounded-xl", className)}
     />
   )

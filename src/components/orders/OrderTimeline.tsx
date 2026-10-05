@@ -4,25 +4,25 @@ import { useTranslations } from 'next-intl'
 import { Clock, CheckCircle2, Package, Truck, Home } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'SHIPPED', 'DELIVERED'] as const
+const STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'] as const
 
 const ICONS: Record<(typeof STEPS)[number], typeof Clock> = {
   PENDING: Clock,
   CONFIRMED: CheckCircle2,
   PREPARING: Package,
-  SHIPPED: Truck,
+  SHIPPED: Package,
+  OUT_FOR_DELIVERY: Truck,
   DELIVERED: Home,
 }
 
-/** Index of the active step. OUT_FOR_DELIVERY maps to SHIPPED; CANCELLED/REFUNDED -> -1. */
+/** Index of the active fulfilment step. CANCELLED/REFUNDED are terminal exceptions. */
 export function timelineIndex(status: string): number {
-  if (status === 'OUT_FOR_DELIVERY') return 3
   return (STEPS as readonly string[]).indexOf(status)
 }
 
 /**
  * Shared visual order timeline (En attente -> Confirmée -> En préparation ->
- * Expédiée -> Livrée). Past steps are forest green, the current step is gold.
+ * Expédiée -> En livraison -> Livrée). Past steps are forest green, the current step is gold.
  * Reused by the public tracking page and (2B) the admin order detail.
  */
 export default function OrderTimeline({ status }: { status: string }) {

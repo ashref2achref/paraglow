@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +52,7 @@ export async function DELETE(request: NextRequest) {
       // ignore empty body
     }
 
-    const where: Record<string, any> = {}
+    const where: Prisma.SiteMediaLogWhereInput = {}
     if (olderThanDays !== undefined && typeof olderThanDays === 'number' && !isNaN(olderThanDays)) {
       const cutoffDate = new Date()
       cutoffDate.setDate(cutoffDate.getDate() - olderThanDays)

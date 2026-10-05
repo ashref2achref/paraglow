@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   Trash2,
@@ -34,11 +34,7 @@ export default function ClientsCorbeillePage() {
   const [activeCustomerId, setActiveCustomerId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    loadTrash()
-  }, [])
-
-  const loadTrash = async () => {
+  const loadTrash = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch('/api/admin/customers/trash')
@@ -51,7 +47,14 @@ export default function ClientsCorbeillePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadTrash()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadTrash])
 
   const handleRestore = async (ids: string[]) => {
     try {
@@ -187,7 +190,7 @@ export default function ClientsCorbeillePage() {
             </div>
             <h3 className="font-serif text-xl font-bold text-[#153f2b] mb-1">La corbeille est vide</h3>
             <p className="text-sm text-[#6b5f4f]/80 max-w-sm mb-6">
-              Il n'y a aucun client en attente de suppression définitive.
+              Il n&apos;y a aucun client en attente de suppression définitive.
             </p>
             <Link href="/admin/clients" className="px-4 py-2 bg-[#1b3a1e] hover:bg-[#c9a052] text-white text-xs font-semibold rounded-lg shadow-sm transition-all">
               Retourner aux clients

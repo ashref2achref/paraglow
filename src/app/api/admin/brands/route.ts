@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const filterEmpty = searchParams.get('filterEmpty') === 'true'
 
-    const whereClause: any = {}
+    const whereClause: Prisma.BrandWhereInput = {}
     if (filterEmpty) {
       whereClause.products = {
         some: {

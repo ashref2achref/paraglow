@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
 import { revalidateAllLocales } from '@/lib/revalidate'
+import { productImageStoragePaths, removeUnreferencedProductImagePaths } from '@/lib/productImageStorage'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,7 +71,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Calculate changes
-    const changes: Record<string, { before: any; after: any }> = {}
+    const changes: Record<string, { before: unknown; after: unknown }> = {}
     const fieldsToCompare: (keyof typeof existing)[] = [
       'code', 'barcode', 'name', 'nameAr', 'nameEn', 'categoryId', 'brandId', 'purchasePriceHT', 'margin',
       'tva', 'sellingPriceTTC', 'stock', 'isActive', 'remiseType', 'remiseValeur', 'remiseVisible'
@@ -99,6 +100,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
     })
+
+    const previousImagePaths = productImageStoragePaths(existing.images, existing.imageUrl)
 
     const updatedProduct = await prisma.product.update({
       where: { id },
@@ -136,6 +139,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       },
     })
 
+    const nextImagePaths = new Set(productImageStoragePaths(updatedProduct.images, updatedProduct.imageUrl))
+    const removedImagePaths = previousImagePaths.filter((path) => !nextImagePaths.has(path))
+    if (removedImagePaths.length > 0) {
+      try {
+        await removeUnreferencedProductImagePaths(removedImagePaths, [id])
+      } catch (error) {
+        console.error('[Product image cleanup after update]', error)
+      }
+    }
+
     // Log the modifications if there are changes
     if (Object.keys(changes).length > 0) {
       await prisma.productLog.create({
@@ -157,7 +170,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     } catch { /* ignore */ }
 
     return NextResponse.json({ product: updatedProduct })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Admin product PUT error:', error)
     console.error('Product PUT error:', error);
     return NextResponse.json({ error: 'Erreur lors de la mise à jour du produit' }, { status: 500 })

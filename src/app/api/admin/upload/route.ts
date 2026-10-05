@@ -5,7 +5,7 @@ import { saveProductImageBuffer } from '@/lib/productImageStorage'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_IMAGE_SIZE = 8 * 1024 * 1024
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024
 const MAX_MULTIPART_OVERHEAD = 1024 * 1024
 const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (contentLengthTooLarge(req, MAX_IMAGE_SIZE)) {
-    return NextResponse.json({ error: 'Image trop volumineuse. Maximum : 8 Mo' }, { status: 413 })
+    return NextResponse.json({ error: 'Image trop volumineuse. Maximum : 4 Mo' }, { status: 413 })
   }
 
   try {
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (file.size > MAX_IMAGE_SIZE) {
-      return NextResponse.json({ error: 'Image trop volumineuse. Maximum : 8 Mo' }, { status: 413 })
+      return NextResponse.json({ error: 'Image trop volumineuse. Maximum : 4 Mo' }, { status: 413 })
     }
 
     const detectedType = await detectImageType(file)
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
     if (buffer.byteLength > MAX_IMAGE_SIZE) {
-      return NextResponse.json({ error: 'Image trop volumineuse. Maximum : 8 Mo' }, { status: 413 })
+      return NextResponse.json({ error: 'Image trop volumineuse. Maximum : 4 Mo' }, { status: 413 })
     }
 
     const url = await saveProductImageBuffer(buffer)

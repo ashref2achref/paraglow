@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/adminSession'
 import prisma from '@/lib/prisma'
 import { purgeOrphans } from '@/lib/purgeOrphans'
+import { productImageStoragePaths, removeUnreferencedProductImagePaths } from '@/lib/productImageStorage'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,9 +42,12 @@ export async function POST(request: NextRequest) {
     if (action === 'empty') {
       const trashedProducts = await prisma.product.findMany({
         where: { supprime: true },
-        select: { id: true }
+        select: { id: true, images: true, imageUrl: true }
       })
       const idsToDelete = trashedProducts.map((p) => p.id)
+      const storagePathsToDelete = trashedProducts.flatMap((product) =>
+        productImageStoragePaths(product.images, product.imageUrl)
+      )
 
       if (idsToDelete.length > 0) {
         const orderedCount = await prisma.orderItem.count({
@@ -66,8 +70,13 @@ export async function POST(request: NextRequest) {
         },
       })
       
-      // Auto-purge orphan categories/brands
+      // Auto-purge orphan categories/brands and product image objects.
       await purgeOrphans()
+      try {
+        await removeUnreferencedProductImagePaths(storagePathsToDelete, idsToDelete)
+      } catch (error) {
+        console.error('[Product image cleanup after trash empty]', error)
+      }
 
       if (deletedCount.count !== idsToDelete.length) {
         console.error('Products trash empty count mismatch:', {
@@ -95,6 +104,14 @@ export async function POST(request: NextRequest) {
         },
       })
     } else if (action === 'delete') {
+      const targetProducts = await prisma.product.findMany({
+        where: { id: { in: ids }, supprime: true },
+        select: { id: true, images: true, imageUrl: true },
+      })
+      const storagePathsToDelete = targetProducts.flatMap((product) =>
+        productImageStoragePaths(product.images, product.imageUrl)
+      )
+
       // Check if any targeted product has been ordered
       const orderedCount = await prisma.orderItem.count({
         where: { productId: { in: ids } }
@@ -135,8 +152,13 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Auto-purge orphan categories/brands
+      // Auto-purge orphan categories/brands and product image objects.
       await purgeOrphans()
+      try {
+        await removeUnreferencedProductImagePaths(storagePathsToDelete, ids)
+      } catch (error) {
+        console.error('[Product image cleanup after permanent delete]', error)
+      }
       return NextResponse.json({ success: true, deletedCount: deletedCount.count })
     } else {
       return NextResponse.json({ error: 'Action non supportée' }, { status: 400 })

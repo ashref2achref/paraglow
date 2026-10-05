@@ -5,17 +5,12 @@ import { MEDIA_SLOTS } from '@/config/mediaSlots'
 import { revalidatePath } from 'next/cache'
 import sharp from 'sharp'
 import { createClient as createSupabaseServiceClient } from '@supabase/supabase-js'
+import { getMediaUploadPolicy } from '@/lib/mediaUploadPolicy'
 
 const supabase = createSupabaseServiceClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-const DEFAULT_IMAGE_QUALITY = 85
-const DEFAULT_MAX_IMAGE_SIZE_MB = 15
-const DEFAULT_MAX_VIDEO_SIZE_MB = 100
-const DEFAULT_ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const DEFAULT_ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm']
 
 async function isAuthed(req: NextRequest): Promise<boolean> {
   return await checkAdminAuth(req);}
@@ -31,44 +26,6 @@ function revalidatePages(slotKey: string) {
     locales.forEach((l) => revalidatePath(`/${l}/notre-histoire`))
   } else if (slotKey.startsWith('contact.')) {
     locales.forEach((l) => revalidatePath(`/${l}/contact`))
-  }
-}
-
-async function getMediaSettings() {
-  let imageQuality = DEFAULT_IMAGE_QUALITY
-  let maxImageSizeMB = DEFAULT_MAX_IMAGE_SIZE_MB
-  let maxVideoSizeMB = DEFAULT_MAX_VIDEO_SIZE_MB
-  let allowedImageTypes = DEFAULT_ALLOWED_IMAGE_TYPES
-  let allowedVideoTypes = DEFAULT_ALLOWED_VIDEO_TYPES
-
-  try {
-    const setting = await prisma.setting.findUnique({ where: { key: 'photosSite' } })
-    if (setting) {
-      const parsed = JSON.parse(setting.value) as {
-        imageQuality?: unknown
-        maxImageSizeMB?: unknown
-        maxVideoSizeMB?: unknown
-        allowedImageTypes?: unknown
-        allowedVideoTypes?: unknown
-      }
-      if (Number.isFinite(Number(parsed.imageQuality))) imageQuality = Math.min(100, Math.max(1, Number(parsed.imageQuality)))
-      if (Number.isFinite(Number(parsed.maxImageSizeMB))) maxImageSizeMB = Number(parsed.maxImageSizeMB)
-      if (Number.isFinite(Number(parsed.maxVideoSizeMB))) maxVideoSizeMB = Number(parsed.maxVideoSizeMB)
-      if (typeof parsed.allowedImageTypes === 'string' && parsed.allowedImageTypes.trim()) {
-        allowedImageTypes = parsed.allowedImageTypes.split(',').map((s) => s.trim()).filter(Boolean)
-      }
-      if (typeof parsed.allowedVideoTypes === 'string' && parsed.allowedVideoTypes.trim()) {
-        allowedVideoTypes = parsed.allowedVideoTypes.split(',').map((s) => s.trim()).filter(Boolean)
-      }
-    }
-  } catch { /* fall back to defaults */ }
-
-  return {
-    imageQuality,
-    maxImageSize: maxImageSizeMB * 1024 * 1024,
-    maxVideoSize: maxVideoSizeMB * 1024 * 1024,
-    allowedImageTypes,
-    allowedVideoTypes,
   }
 }
 
@@ -104,7 +61,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Slot invalide' }, { status: 400 })
     }
 
-    const settings = await getMediaSettings()
+    const settings = await getMediaUploadPolicy()
     const mimeType = file.type
     const isImage = settings.allowedImageTypes.includes(mimeType)
     const isVideo = settings.allowedVideoTypes.includes(mimeType)
@@ -113,11 +70,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Type de fichier non supporté. Accepté : JPG, PNG, WebP, MP4, WebM' }, { status: 400 })
     }
 
-    if (isVideo && !slotDef.acceptVideo) {
-      return NextResponse.json({ error: 'Ce slot n\'accepte que les images' }, { status: 400 })
+    if (isVideo) {
+      return NextResponse.json({
+        error: 'Les vidéos utilisent le flux d’upload direct sécurisé.',
+      }, { status: 400 })
     }
 
-    const maxSize = isImage ? settings.maxImageSize : settings.maxVideoSize
+    const maxSize = settings.maxImageSize
     if (file.size > maxSize) {
       const maxMb = Math.round(maxSize / (1024 * 1024))
       return NextResponse.json({ error: `Fichier trop volumineux. Maximum : ${maxMb} Mo` }, { status: 400 })
@@ -144,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('site-media')
       .upload(safeName, buffer, {
         contentType: isImage ? 'image/webp' : mimeType,

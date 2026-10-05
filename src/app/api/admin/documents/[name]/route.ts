@@ -1,39 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/adminSession'
-import path from 'path'
-import fs from 'fs/promises'
+import { createClient as createSupabaseServiceClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
-async function checkAuth(request: NextRequest) {
-  return await checkAdminAuth(request)
-}
+const DOCUMENT_BUCKET = 'admin-documents'
+
+const supabase = createSupabaseServiceClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ name: string }> }) {
-  if (!(await checkAuth(request))) {
+  if (!(await checkAdminAuth(request))) {
     return new NextResponse('Non autorisé', { status: 401 })
   }
 
   const { name } = await ctx.params
-  
-  // Protect against directory traversal attacks (only allow doc-UUID.pdf format)
-  const safeName = path.basename(name)
-  if (!/^doc-[a-f0-9-]{36}\.pdf$/i.test(safeName)) {
+  if (!/^doc-[a-f0-9-]{36}\.pdf$/i.test(name)) {
     return new NextResponse('Fichier invalide', { status: 400 })
   }
 
-  const filePath = path.join(process.cwd(), 'private-uploads', 'documents', safeName)
-
   try {
-    const fileBuffer = await fs.readFile(filePath)
-    return new NextResponse(fileBuffer, {
+    const { data, error } = await supabase.storage
+      .from(DOCUMENT_BUCKET)
+      .download(`documents/${name}`)
+
+    if (error || !data) {
+      return new NextResponse('Document introuvable', { status: 404 })
+    }
+
+    const buffer = Buffer.from(await data.arrayBuffer())
+    return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${safeName}"`,
+        'Content-Disposition': `attachment; filename="${name}"`,
+        'Cache-Control': 'private, no-store',
       },
     })
-  } catch (err) {
-    console.error('[Document Read Error]', err)
+  } catch (error) {
+    console.error('[Document Read Error]', error)
     return new NextResponse('Document introuvable', { status: 404 })
   }
 }

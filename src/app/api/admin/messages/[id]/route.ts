@@ -24,7 +24,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
 
     return NextResponse.json({ message })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Admin message PUT error:', error)
     console.error('Message PUT error:', error);
     return NextResponse.json({ error: 'Erreur lors de la mise à jour du message' }, { status: 500 })

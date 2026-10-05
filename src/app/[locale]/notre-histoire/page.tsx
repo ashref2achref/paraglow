@@ -1,4 +1,28 @@
+import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
+import { buildLocalizedMetadata, normalizeSeoLocale } from '@/lib/seo'
+
+const ABOUT_SEO = {
+  fr: {
+    title: 'Notre histoire — ParaGlow',
+    description: 'Découvrez ParaGlow, notre vision de la parapharmacie premium et nos engagements envers la qualité, le conseil et le service.',
+  },
+  en: {
+    title: 'Our story — ParaGlow',
+    description: 'Discover ParaGlow, our premium parapharmacy vision and our commitments to quality, guidance and service.',
+  },
+  ar: {
+    title: 'قصتنا — ParaGlow',
+    description: 'اكتشفوا ParaGlow ورؤيتنا للبارافارماسي المتميزة والتزامنا بالجودة والنصيحة والخدمة.',
+  },
+} as const
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: requestedLocale } = await params
+  const locale = normalizeSeoLocale(requestedLocale) as keyof typeof ABOUT_SEO
+  return buildLocalizedMetadata({ locale, path: '/notre-histoire', ...ABOUT_SEO[locale] })
+}
+
 import { cn } from '@/lib/utils'
 import Container from '@/components/ui/Container'
 import ScrollReveal from '@/components/ui/ScrollReveal'

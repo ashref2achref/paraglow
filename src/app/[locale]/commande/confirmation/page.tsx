@@ -2,6 +2,7 @@
 
 import { use, useEffect } from 'react'
 import Link from 'next/link'
+import { localizedPath } from '@/lib/localizedPath'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, ShoppingBag, Truck, PackageSearch, Copy } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -101,7 +102,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ locale:
           {/* Action buttons */}
           <div className="flex flex-col sm:flex-row gap-4 w-full mt-2">
             <Link
-              href={`/${locale}/commande/suivi`}
+              href={localizedPath(locale, '/commande/suivi')}
               className="flex-1 py-3.5 bg-[#153f2b] hover:bg-[#c9a052] text-white text-sm font-semibold rounded-xl shadow-xs hover:shadow-md transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
             >
               <PackageSearch className="w-4 h-4" />
@@ -109,7 +110,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ locale:
             </Link>
 
             <Link
-              href={`/${locale}/catalogue`}
+              href={localizedPath(locale, '/catalogue')}
               className="flex-1 py-3.5 border border-[#153f2b]/20 hover:border-[#153f2b] text-[#153f2b] text-sm font-semibold rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
             >
               <ShoppingBag className="w-4 h-4" />

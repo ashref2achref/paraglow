@@ -59,7 +59,10 @@ export default function MessagesPage() {
     }
   }, [page, status])
 
-  useEffect(() => { fetchMessages() }, [fetchMessages])
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchMessages(), 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchMessages])
 
   const toggleRead = async (message: ContactMessage, isRead: boolean) => {
     try {

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import ProductImage from '@/components/ui/ProductImage'
 import InstallPWAButton from '@/components/layout/InstallPWAButton'
+import SmartInsights from '@/components/admin/SmartInsights'
 
 // Dynamic Recharts to prevent SSR hydration issues
 const ResponsiveContainer = dynamicImport(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false })
@@ -80,8 +81,7 @@ interface DashboardClientProps {
 
 export default function DashboardClient({ initialData }: DashboardClientProps) {
   const [data, setData] = useState<DashboardData>(initialData)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [, setError] = useState('')
 
   const getGreeting = () => {
     const hr = new Date().getHours()
@@ -105,8 +105,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       if (!res.ok) throw new Error('Erreur de chargement')
       const json = await res.json()
       setData(json)
-    } catch (e: any) {
-      setError(e.message || 'Impossible de se connecter à l\'API')
+    } catch (e: unknown) {
+      setError(e instanceof Error && e.message ? e.message : 'Impossible de se connecter à l\'API')
     }
   }
 
@@ -190,7 +190,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
             {getGreeting()}, Administrateur <span className="animate-bounce">👋</span>
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Voici les performances clés et les actions requises pour aujourd'hui.
+            Voici les performances clés et les actions requises pour aujourd&apos;hui.
           </p>
         </div>
         <div className="flex items-center gap-4 md:justify-end">
@@ -256,6 +256,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         </div>
       )}
 
+      <SmartInsights data={data} />
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {kpis.map((kpi, idx) => (
@@ -289,10 +291,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           <div>
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-gray-500" />
-              Évolution du Chiffre d'Affaires (7 derniers jours)
+              Évolution du Chiffre d&apos;Affaires (7 derniers jours)
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Chiffre d'affaires cumulé journalier des commandes confirmées ou livrées.
+              Chiffre d&apos;affaires cumulé journalier des commandes confirmées ou livrées.
             </p>
           </div>
           <div className="h-64 mt-6 w-full min-w-0">
@@ -311,7 +313,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                   <Tooltip 
                     contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
                     labelClassName="font-bold text-gray-700 text-xs"
-                    formatter={(val: any) => [`${Number(val).toFixed(3)} TND`, 'Chiffre d\'Affaires']}
+                    formatter={(val) => [`${Number(val ?? 0).toFixed(3)} TND`, 'Chiffre d\'Affaires']}
                   />
                   <Area type="monotone" dataKey="revenue" stroke="#c9a052" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
                 </AreaChart>
@@ -351,7 +353,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           <div className="mt-6 pt-6 border-t border-gray-50">
             <div className="flex items-center justify-between text-xs text-gray-400">
               <span>Optimisation</span>
-              <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Base SQLite Active</span>
+              <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Base PostgreSQL Active</span>
             </div>
           </div>
         </div>

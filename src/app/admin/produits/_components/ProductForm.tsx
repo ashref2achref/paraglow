@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import {
   Plus,
   Image as ImageIcon,
@@ -24,7 +25,78 @@ import { computeDisplayPrice } from '@/lib/productPricing'
 interface Category { id: string; name: string }
 interface Brand { id: string; name: string }
 
-export default function ProductForm({ product, id }: { product?: any; id?: string }) {
+interface ProductFormProduct {
+  code?: string | null
+  barcode?: string | null
+  name?: string | null
+  nameAr?: string | null
+  nameEn?: string | null
+  slug?: string | null
+  categoryId?: string | null
+  brandId?: string | null
+  description?: string | null
+  descriptionAr?: string | null
+  descriptionEn?: string | null
+  purchasePriceHT?: number | null
+  margin?: number | null
+  tva?: number | null
+  sellingPriceTTC?: number | null
+  sellingPriceHT?: number | null
+  publicPrice?: number | null
+  stock?: number | null
+  stockMin?: number | null
+  loyaltyPoints?: number | null
+  imageUrl?: string | null
+  images?: string | null
+  remiseType?: 'AUCUNE' | 'POURCENTAGE' | 'PRIX_FIXE' | null
+  remiseValeur?: number | null
+  remiseVisible?: boolean | null
+  isActive?: boolean | null
+  isNew?: boolean | null
+  isOnSale?: boolean | null
+  isFeatured?: boolean | null
+  isBestSeller?: boolean | null
+}
+
+interface ProductFormState {
+  code: string
+  barcode: string
+  name: string
+  nameAr: string
+  nameEn: string
+  slug: string
+  categoryId: string
+  brandId: string
+  description: string
+  descriptionAr: string
+  descriptionEn: string
+  purchasePriceHT: number
+  margin: number
+  tva: number
+  sellingPriceTTC: number
+  sellingPriceHT: number
+  publicPrice: number | ''
+  stock: number
+  stockMin: number
+  loyaltyPoints: number
+  imageUrl: string
+  images: string[]
+  remiseType: 'AUCUNE' | 'POURCENTAGE' | 'PRIX_FIXE'
+  remiseValeur: number | ''
+  remiseVisible: boolean
+  isActive: boolean
+  isNew: boolean
+  isOnSale: boolean
+  isFeatured: boolean
+  isBestSeller: boolean
+}
+
+function numberOr(value: unknown, fallback = 0) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+export default function ProductForm({ product, id }: { product?: ProductFormProduct; id?: string }) {
   const router = useRouter()
   const isEdit = !!id
 
@@ -47,7 +119,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Form State
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ProductFormState>({
     code: product?.code || '',
     barcode: product?.barcode || '',
     name: product?.name || '',
@@ -59,19 +131,19 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
     description: product?.description || '',
     descriptionAr: product?.descriptionAr || '',
     descriptionEn: product?.descriptionEn || '',
-    purchasePriceHT: product?.purchasePriceHT || 0,
-    margin: product?.margin || 0,
-    tva: product?.tva || 19,
-    sellingPriceTTC: product?.sellingPriceTTC || 0,
-    sellingPriceHT: product?.sellingPriceHT || 0,
-    publicPrice: product?.publicPrice || '',
-    stock: product?.stock || 0,
-    stockMin: product?.stockMin || 5,
-    loyaltyPoints: product?.loyaltyPoints || 0,
+    purchasePriceHT: product?.purchasePriceHT ?? 0,
+    margin: product?.margin ?? 0,
+    tva: product?.tva ?? 19,
+    sellingPriceTTC: product?.sellingPriceTTC ?? 0,
+    sellingPriceHT: product?.sellingPriceHT ?? 0,
+    publicPrice: product?.publicPrice ?? '',
+    stock: product?.stock ?? 0,
+    stockMin: product?.stockMin ?? 5,
+    loyaltyPoints: product?.loyaltyPoints ?? 0,
     imageUrl: product?.imageUrl || '',
     images: [] as string[],
     remiseType: product?.remiseType || 'AUCUNE',
-    remiseValeur: product?.remiseValeur || '',
+    remiseValeur: product?.remiseValeur ?? '',
     remiseVisible: product?.remiseVisible || false,
     isActive: product?.isActive !== false,
     isNew: product?.isNew || false,
@@ -80,51 +152,59 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
     isBestSeller: product?.isBestSeller || false,
   })
 
-  // Load dropdown lists and settings
+  const fetchLists = useCallback(async () => {
+    const [categoriesResult, brandsResult] = await Promise.allSettled([
+      fetch('/api/admin/categories').then((response) => response.json()),
+      fetch('/api/admin/brands').then((response) => response.json()),
+    ])
+
+    if (categoriesResult.status === 'fulfilled') {
+      setCategories(categoriesResult.value.categories || [])
+    }
+    if (brandsResult.status === 'fulfilled') {
+      setBrands(brandsResult.value.brands || [])
+    }
+  }, [])
+
+  // Load dropdown lists and settings after the initial render commits.
   useEffect(() => {
-    fetchLists()
-    if (product) {
-      if (product.images) {
+    const timer = window.setTimeout(async () => {
+      await fetchLists()
+
+      if (product?.images && typeof product.images === 'string') {
         try {
           const trimmed = product.images.trim()
           if (trimmed.startsWith('[')) {
             const parsed = JSON.parse(trimmed)
-            setForm((f) => ({ ...f, images: Array.isArray(parsed) ? parsed : [] }))
+            setForm((current) => ({ ...current, images: Array.isArray(parsed) ? parsed : [] }))
           }
-        } catch { /* ignore */ }
+        } catch { /* ignore malformed legacy image data */ }
+        return
       }
-    } else {
-      // Set default TVA from settings
-      fetch('/api/admin/settings')
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.settings?.defaultTva) {
-            setForm((f) => ({ ...f, tva: parseFloat(data.settings.defaultTva) || 19 }))
-          }
-        })
-        .catch(() => {})
-    }
-  }, [product])
 
-  const fetchLists = async () => {
-    fetch('/api/admin/categories')
-      .then((r) => r.json())
-      .then((d) => setCategories(d.categories || []))
-    fetch('/api/admin/brands')
-      .then((r) => r.json())
-      .then((d) => setBrands(d.brands || []))
-  }
+      if (!product) {
+        try {
+          const response = await fetch('/api/admin/settings')
+          const data = await response.json()
+          const defaultTva = numberOr(data.settings?.defaultTva, 19)
+          setForm((current) => ({ ...current, tva: defaultTva }))
+        } catch { /* keep form default */ }
+      }
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [product, fetchLists])
 
   // Handle value setting + auto calculations
-  function set(field: string, value: any) {
+  function set<K extends keyof ProductFormState>(field: K, value: ProductFormState[K]) {
     setForm((f) => {
       const updated = { ...f, [field]: value }
 
       // Auto-calculate prices if purchase price, margin, or tva changes
       if (field === 'purchasePriceHT' || field === 'margin' || field === 'tva') {
-        const ht = parseFloat(String(updated.purchasePriceHT)) || 0
-        const margin = parseFloat(String(updated.margin)) || 0
-        const tva = parseFloat(String(updated.tva)) || 19
+        const ht = numberOr(updated.purchasePriceHT)
+        const margin = numberOr(updated.margin)
+        const tva = numberOr(updated.tva, 19)
         
         const sellingHT = ht * (1 + margin / 100)
         const sellingTTC = sellingHT * (1 + tva / 100)
@@ -135,9 +215,9 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
 
       // Auto-calculate margin and sellingPriceHT if sellingPriceTTC changes
       if (field === 'sellingPriceTTC') {
-        const ttc = parseFloat(String(value)) || 0
-        const tva = parseFloat(String(updated.tva)) || 19
-        const ht = parseFloat(String(updated.purchasePriceHT)) || 0
+        const ttc = numberOr(value)
+        const tva = numberOr(updated.tva, 19)
+        const ht = numberOr(updated.purchasePriceHT)
         
         const sellingHT = ttc / (1 + tva / 100)
         updated.sellingPriceHT = Math.round(sellingHT * 1000) / 1000
@@ -327,9 +407,10 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
       toast.success(isEdit ? 'Produit mis à jour !' : 'Produit créé !')
       router.refresh()
       setTimeout(() => router.push('/admin/produits'), 1200)
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de l\'enregistrement')
-      toast.error(err.message || 'Erreur lors de l\'enregistrement')
+    } catch (err: unknown) {
+      const message = err instanceof Error && err.message ? err.message : 'Erreur lors de l\'enregistrement'
+      setError(message)
+      toast.error(message)
     } finally {
       setSaving(false)
     }
@@ -526,12 +607,12 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div>
-              <label className={labelStyle}>Prix d'achat HT</label>
+              <label className={labelStyle}>Prix d&apos;achat HT</label>
               <input
                 type="number"
                 step="0.001"
                 value={form.purchasePriceHT}
-                onChange={(e) => set('purchasePriceHT', e.target.value)}
+                onChange={(e) => set('purchasePriceHT', numberOr(e.target.value))}
                 className={inputStyle}
               />
             </div>
@@ -541,7 +622,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
                 type="number"
                 step="0.1"
                 value={form.margin}
-                onChange={(e) => set('margin', e.target.value)}
+                onChange={(e) => set('margin', numberOr(e.target.value))}
                 className={inputStyle}
               />
             </div>
@@ -551,7 +632,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
                 type="number"
                 step="0.1"
                 value={form.tva}
-                onChange={(e) => set('tva', e.target.value)}
+                onChange={(e) => set('tva', numberOr(e.target.value, 19))}
                 className={inputStyle}
               />
             </div>
@@ -564,7 +645,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
                 type="number"
                 step="0.001"
                 value={form.sellingPriceTTC}
-                onChange={(e) => set('sellingPriceTTC', e.target.value)}
+                onChange={(e) => set('sellingPriceTTC', numberOr(e.target.value))}
                 required
                 className={`${inputStyle} ${wasSubmitAttempted && (!form.sellingPriceTTC || Number(form.sellingPriceTTC) <= 0) ? 'border-rose-400 focus:border-rose-500 bg-rose-50/10' : ''}`}
               />
@@ -575,7 +656,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
                 type="number"
                 step="0.001"
                 value={form.sellingPriceHT}
-                onChange={(e) => set('sellingPriceHT', e.target.value)}
+                onChange={(e) => set('sellingPriceHT', numberOr(e.target.value))}
                 className={inputStyle}
               />
             </div>
@@ -585,7 +666,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
                 type="number"
                 step="0.001"
                 value={form.publicPrice}
-                onChange={(e) => set('publicPrice', e.target.value)}
+                onChange={(e) => set('publicPrice', e.target.value === '' ? '' : numberOr(e.target.value))}
                 className={inputStyle}
               />
             </div>
@@ -603,7 +684,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
               <label className={labelStyle}>Type de remise</label>
               <select
                 value={form.remiseType}
-                onChange={(e) => set('remiseType', e.target.value)}
+                onChange={(e) => set('remiseType', e.target.value as ProductFormState['remiseType'])}
                 className={inputStyle}
               >
                 <option value="AUCUNE">Aucune remise</option>
@@ -619,7 +700,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
                 step="0.001"
                 disabled={form.remiseType === 'AUCUNE'}
                 value={form.remiseValeur}
-                onChange={(e) => set('remiseValeur', e.target.value)}
+                onChange={(e) => set('remiseValeur', e.target.value === '' ? '' : numberOr(e.target.value))}
                 className={`${inputStyle} disabled:opacity-50`}
                 placeholder={
                   form.remiseType === 'POURCENTAGE' ? 'Ex: 20 (% de réduction)' : 
@@ -645,7 +726,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
           {form.remiseType !== 'AUCUNE' && (
             <div className="bg-[#FBF6EC] border border-[#c9a052]/30 rounded-xl p-4 text-xs space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-[#6b5f4f] font-medium">Prix d'origine (TTC) :</span>
+                <span className="text-[#6b5f4f] font-medium">Prix d&apos;origine (TTC) :</span>
                 <span className="font-mono text-[#2a1f0e]">{priceTTC.toFixed(3)} TND</span>
               </div>
               <div className="flex justify-between border-t border-[#eadfca] pt-1.5 font-bold text-sm">
@@ -680,7 +761,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
               />
             </div>
             <div>
-              <label className={labelStyle}>Seuil stock d'alerte</label>
+              <label className={labelStyle}>Seuil stock d&apos;alerte</label>
               <input
                 type="number"
                 value={form.stockMin}
@@ -783,7 +864,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
           {/* Uploaded thumbnails */}
           {form.images.length > 0 && (
             <div className="pt-2">
-              <label className={labelStyle}>Sélectionnez l'image principale (couverture) :</label>
+              <label className={labelStyle}>Sélectionnez l&apos;image principale (couverture) :</label>
               <div className="flex flex-wrap gap-3">
                 {form.images.map((url, index) => {
                   const isCover = form.imageUrl === url
@@ -794,7 +875,7 @@ export default function ProductForm({ product, id }: { product?: any; id?: strin
                         isCover ? 'border-2 border-[#1b3a1e] ring-2 ring-[#1b3a1e]/10' : 'border-[#eadfca]'
                       }`}
                     >
-                      <img src={url} alt="" className="object-contain w-full h-full" />
+                      <Image src={url} alt="Image produit" fill sizes="96px" className="object-contain p-1" />
                       
                       {/* Delete icon */}
                       <button

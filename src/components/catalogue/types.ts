@@ -7,7 +7,9 @@ export interface Product {
   code: string
   slug: string
   name: string
-  description?: string
+  nameAr?: string | null
+  nameEn?: string | null
+  description?: string | null
   sellingPriceTTC: number
   originalPrice?: number
   remiseType?: string
@@ -18,18 +20,18 @@ export interface Product {
   isBestSeller: boolean
   isFeatured: boolean
   isNew: boolean
-  rating: number
-  reviewsCount: number
+  rating?: number
+  reviewsCount?: number
   category?: {
     name: string
     nameAr?: string | null
     nameEn?: string | null
-    slug: string
-  }
+    slug?: string
+  } | null
   brand?: {
     name: string
-    slug: string
-  }
+    slug?: string
+  } | null
 }
 
 export interface Category {

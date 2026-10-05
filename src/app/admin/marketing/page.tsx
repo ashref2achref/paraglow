@@ -43,6 +43,56 @@ interface PromoCode {
   totalDiscountApplied: number
 }
 
+interface PartnerClient {
+  id: string
+  nom: string
+  prenom: string
+  phone: string
+  email?: string | null
+  adresse?: string | null
+  createdAt: string
+  ordersCount: number
+  totalSpent: number
+}
+
+interface PromoHistoryLog {
+  id: string
+  action: string
+  details: string
+  changes?: string | null
+  createdAt: string
+}
+
+interface PromoUsageByClient {
+  phone: string
+  name: string
+  count: number
+}
+
+interface PromoOrderRow {
+  id: string
+  orderNumber: string
+  clientName: string
+  clientPhone?: string | null
+  status: string
+  total: number
+  promoDiscount: number
+  createdAt: string
+}
+
+interface PromoDetails {
+  promo: PromoCode
+  orders: PromoOrderRow[]
+  stats: {
+    ordersCount: number
+    generatedCA: number
+    totalDiscountApplied: number
+    exhaustionRate: number | null
+    deliverySuccessRate: number | null
+    usageByClient: PromoUsageByClient[]
+  }
+}
+
 interface Partner {
   id: string
   name: string
@@ -61,7 +111,7 @@ interface Partner {
   clientsCount: number
   ordersCount: number
   totalSpent: number
-  clients?: any[]
+  clients?: PartnerClient[]
 }
 
 // Action dropdown portal component for promo codes
@@ -186,8 +236,8 @@ export default function MarketingPage() {
 
   // Promo corbeille badge + historique logs + single-promo detail
   const [promoTrashCount, setPromoTrashCount] = useState(0)
-  const [promoHistoryLogs, setPromoHistoryLogs] = useState<any[]>([])
-  const [promoDetails, setPromoDetails] = useState<any | null>(null)
+  const [promoHistoryLogs, setPromoHistoryLogs] = useState<PromoHistoryLog[]>([])
+  const [promoDetails, setPromoDetails] = useState<PromoDetails | null>(null)
 
   // Selected entities for edit/delete
   const [selectedPromo, setSelectedPromo] = useState<PromoCode | null>(null)
@@ -389,16 +439,6 @@ export default function MarketingPage() {
     } finally {
       setUploadingDoc(false)
     }
-  }
-
-  // Random coupon generator (Dices button)
-  const generateRandomCoupon = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    let result = settings.defaultPromoPrefix || 'GLOW-'
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    setPromoCode(result)
   }
 
   // Create or Update Promo code
@@ -653,15 +693,21 @@ export default function MarketingPage() {
     return `Offre : ${reductionStr} ${targetStr}${conditionStr}${dateStr}.`
   }
 
-  // Check stats loads on tab active
+  // Load only the active dataset when switching tabs.
   useEffect(() => {
-    if (activeTab === 'promos') fetchPromos()
-    else fetchPartners()
-    loadSettings()
+    const timer = window.setTimeout(() => {
+      if (activeTab === 'promos') void fetchPromos()
+      else void fetchPartners()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [activeTab])
 
+  // Settings and trash count are page-level metadata: fetch them once, not on every tab switch.
   useEffect(() => {
-    fetchPromoTrashCount()
+    const timer = window.setTimeout(() => {
+      void Promise.all([loadSettings(), fetchPromoTrashCount()])
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   // Formatting date
@@ -772,7 +818,70 @@ export default function MarketingPage() {
               <p className="text-[#6b5f4f]/80 mt-1">Créez votre première réduction en haut à droite.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="md:hidden space-y-3 p-3">
+                {promos.map((promo) => {
+                  const now = new Date()
+                  const isExpired = promo.endDate ? new Date(promo.endDate) < now : false
+                  const isExhausted = promo.maxUses ? promo.usedCount >= promo.maxUses : false
+                  const statusLabel = !promo.isActive ? 'Désactivé' : isExhausted ? 'Épuisé' : isExpired ? 'Expiré' : 'Actif'
+                  const statusClass = !promo.isActive
+                    ? 'bg-gray-100 text-gray-600'
+                    : isExhausted
+                      ? 'bg-orange-50 text-orange-700'
+                      : isExpired
+                        ? 'bg-rose-50 text-rose-700'
+                        : 'bg-emerald-50 text-emerald-700'
+
+                  return (
+                    <div key={promo.id} className="rounded-2xl border border-[#eadfca] bg-white p-4 shadow-3xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-bold text-[#153f2b] truncate">{promo.code}</span>
+                            <button
+                              type="button"
+                              onClick={() => { navigator.clipboard.writeText(promo.code); toast.success('Code copié !') }}
+                              className="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-[#FBF6EC] text-[#6b5f4f] cursor-pointer"
+                              aria-label="Copier le code"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-[#6b5f4f] mt-1">{formatDate(promo.startDate)} → {formatDate(promo.endDate)}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-[9px] font-bold ${statusClass}`}>{statusLabel}</span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 mt-4">
+                        <div className="rounded-xl bg-[#FBF6EC]/55 p-2.5">
+                          <p className="text-[9px] text-[#9b8f7a]">Valeur</p>
+                          <p className="text-[11px] font-bold text-[#153f2b] mt-0.5">
+                            {promo.type === 'PERCENTAGE' ? `-${promo.value}%` : promo.type === 'FIXED_AMOUNT' ? `-${(promo.value ?? 0).toFixed(3)} DT` : 'Livraison'}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-[#FBF6EC]/55 p-2.5">
+                          <p className="text-[9px] text-[#9b8f7a]">Usages</p>
+                          <p className="text-[11px] font-bold text-[#153f2b] mt-0.5">{promo.usedCount}/{promo.maxUses || '∞'}</p>
+                        </div>
+                        <div className="rounded-xl bg-[#FBF6EC]/55 p-2.5">
+                          <p className="text-[9px] text-[#9b8f7a]">CA</p>
+                          <p className="text-[11px] font-bold text-[#c9a052] mt-0.5">{(promo.generatedCA ?? 0).toFixed(3)} DT</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        <button type="button" onClick={() => fetchPromoDetails(promo.id)} className="h-10 rounded-xl border border-[#eadfca] bg-white text-[#153f2b] inline-flex items-center justify-center cursor-pointer" aria-label="Voir"><Eye className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => openPromoEdit(promo)} className="h-10 rounded-xl border border-[#eadfca] bg-white text-[#153f2b] inline-flex items-center justify-center cursor-pointer" aria-label="Modifier"><Edit className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => handleTogglePromoActive(promo)} className="h-10 rounded-xl border border-[#eadfca] bg-white text-emerald-700 inline-flex items-center justify-center cursor-pointer" aria-label="Changer statut"><Check className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => { setSelectedPromo(promo); setIsConfirmingDeletePromo(true) }} className="h-10 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 inline-flex items-center justify-center cursor-pointer" aria-label="Supprimer"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-[#FBF6EC]/60 border-b border-[#eadfca] text-[#153f2b] font-serif">
@@ -790,8 +899,8 @@ export default function MarketingPage() {
                   {promos.map(p => {
                     // Calculate status validity
                     const now = new Date()
-                    let isExpired = p.endDate ? new Date(p.endDate) < now : false
-                    let isExhausted = p.maxUses ? p.usedCount >= p.maxUses : false
+                    const isExpired = p.endDate ? new Date(p.endDate) < now : false
+                    const isExhausted = p.maxUses ? p.usedCount >= p.maxUses : false
                     
                     return (
                       <tr key={p.id} className="border-b border-[#eadfca]/40 hover:bg-[#FBF6EC]/25 transition-colors">
@@ -874,6 +983,7 @@ export default function MarketingPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -888,7 +998,63 @@ export default function MarketingPage() {
               <p className="text-[#6b5f4f]/80 mt-1">Créez votre première convention entreprise en haut à droite.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="md:hidden space-y-3 p-3">
+                {partners.map((partner) => {
+                  const isExpired = partner.endDate ? new Date(partner.endDate) < new Date() : false
+                  const statusLabel = !partner.isActive ? 'Désactivé' : isExpired ? 'Expiré' : 'Actif'
+                  const statusClass = !partner.isActive
+                    ? 'bg-gray-100 text-gray-600'
+                    : isExpired
+                      ? 'bg-rose-50 text-rose-700'
+                      : 'bg-emerald-50 text-emerald-700'
+
+                  return (
+                    <div key={partner.id} className="rounded-2xl border border-[#eadfca] bg-white p-4 shadow-3xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#153f2b] truncate">{partner.name}</p>
+                          <p className="text-[10px] text-[#6b5f4f] mt-0.5">{partner.type || 'Convention'}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-[9px] font-bold ${statusClass}`}>{statusLabel}</span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 mt-4">
+                        <div className="rounded-xl bg-[#FBF6EC]/55 p-2.5">
+                          <p className="text-[9px] text-[#9b8f7a]">Remise</p>
+                          <p className="text-[11px] font-bold text-[#153f2b] mt-0.5">
+                            {partner.discountType === 'PERCENTAGE' ? `${partner.discountValue}%` : `${(partner.discountValue ?? 0).toFixed(3)} DT`}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-[#FBF6EC]/55 p-2.5">
+                          <p className="text-[9px] text-[#9b8f7a]">Clients</p>
+                          <p className="text-[11px] font-bold text-[#153f2b] mt-0.5">{partner.clientsCount}</p>
+                        </div>
+                        <div className="rounded-xl bg-[#FBF6EC]/55 p-2.5">
+                          <p className="text-[9px] text-[#9b8f7a]">CA cumulé</p>
+                          <p className="text-[11px] font-bold text-[#c9a052] mt-0.5">{(partner.totalSpent ?? 0).toFixed(3)} DT</p>
+                        </div>
+                      </div>
+
+                      {(partner.contactName || partner.contactPhone || partner.contactEmail) && (
+                        <div className="mt-3 rounded-xl border border-[#eadfca] p-2.5 text-[10px] text-[#6b5f4f]">
+                          <span className="font-bold text-[#153f2b]">{partner.contactName || 'Contact'}</span>
+                          <span className="block mt-0.5 truncate">{partner.contactPhone || partner.contactEmail}</span>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        <button type="button" onClick={() => fetchPartnerDetails(partner.id)} className="h-10 rounded-xl border border-[#eadfca] bg-white text-[#153f2b] inline-flex items-center justify-center cursor-pointer" aria-label="Voir"><Eye className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => openPartnerEdit(partner)} className="h-10 rounded-xl border border-[#eadfca] bg-white text-[#153f2b] inline-flex items-center justify-center cursor-pointer" aria-label="Modifier"><Edit className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => handleTogglePartnerActive(partner)} className="h-10 rounded-xl border border-[#eadfca] bg-white text-emerald-700 inline-flex items-center justify-center cursor-pointer" aria-label="Changer statut"><Check className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => { setSelectedPartner(partner); setIsConfirmingDeletePartner(true) }} className="h-10 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 inline-flex items-center justify-center cursor-pointer" aria-label="Supprimer"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-[#FBF6EC]/60 border-b border-[#eadfca] text-[#153f2b] font-serif">
@@ -905,7 +1071,7 @@ export default function MarketingPage() {
                 <tbody>
                   {partners.map(part => {
                     const now = new Date()
-                    let isExpired = part.endDate ? new Date(part.endDate) < now : false
+                    const isExpired = part.endDate ? new Date(part.endDate) < now : false
 
                     return (
                       <tr key={part.id} className="border-b border-[#eadfca]/40 hover:bg-[#FBF6EC]/25 transition-colors">
@@ -980,6 +1146,7 @@ export default function MarketingPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -1036,7 +1203,7 @@ export default function MarketingPage() {
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-[#6b7d53] uppercase mb-1">Limite d'utilisations globales</label>
+              <label className="block text-[10px] font-bold text-[#6b7d53] uppercase mb-1">Limite d&apos;utilisations globales</label>
               <input
                 type="number"
                 value={promoMaxUses}
@@ -1060,7 +1227,7 @@ export default function MarketingPage() {
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-[#6b7d53] uppercase mb-1">Date d'expiration</label>
+              <label className="block text-[10px] font-bold text-[#6b7d53] uppercase mb-1">Date d&apos;expiration</label>
               <input
                 type="date"
                 value={promoEndDate}
@@ -1293,7 +1460,7 @@ export default function MarketingPage() {
       >
         {partnerDetails && (
           <div className="space-y-6 text-xs text-left">
-            <p className="text-xs text-[#9b8f7a] -mt-4">Suivi des remises CSE, documents légaux et statistiques d'achats clients.</p>
+            <p className="text-xs text-[#9b8f7a] -mt-4">Suivi des remises CSE, documents légaux et statistiques d&apos;achats clients.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               
@@ -1319,7 +1486,7 @@ export default function MarketingPage() {
                     </div>
 
                     <div>
-                      <span className="text-[10px] text-[#9b8f7a] block">Période d'activité</span>
+                      <span className="text-[10px] text-[#9b8f7a] block">Période d&apos;activité</span>
                       <span className="font-semibold text-[#153f2b]">
                         Du {partnerDetails.startDate ? new Date(partnerDetails.startDate).toLocaleDateString('fr-FR') : 'Début indéterminé'} au {partnerDetails.endDate ? new Date(partnerDetails.endDate).toLocaleDateString('fr-FR') : 'Fin indéterminée'}
                       </span>
@@ -1389,7 +1556,7 @@ export default function MarketingPage() {
                   </span>
 
                   {(!partnerDetails.clients || partnerDetails.clients.length === 0) ? (
-                    <div className="py-8 text-center text-[#9b8f7a] italic">Aucun client n'a encore utilisé cette convention pour commander.</div>
+                    <div className="py-8 text-center text-[#9b8f7a] italic">Aucun client n&apos;a encore utilisé cette convention pour commander.</div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
@@ -1402,7 +1569,7 @@ export default function MarketingPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#eadfca]/30">
-                          {partnerDetails.clients.map((c: any) => (
+                          {partnerDetails.clients.map((c) => (
                             <tr key={c.id} className="hover:bg-[#FBF6EC]/20 transition-colors">
                               <td className="p-3 font-bold text-[#153f2b]">{c.prenom} {c.nom}</td>
                               <td className="p-3 font-mono">{c.phone}</td>
@@ -1462,7 +1629,7 @@ export default function MarketingPage() {
           <div className="flex items-center justify-between p-3 border border-[#eadfca]/60 bg-[#FBF6EC]/20 rounded-xl">
             <div>
               <span className="block font-bold text-[#153f2b]">Cumul code promo + remise produit</span>
-              <span className="text-[10px] text-[#6b5f4f]/80">Autoriser l'application sur produits déjà remisés</span>
+              <span className="text-[10px] text-[#6b5f4f]/80">Autoriser l&apos;application sur produits déjà remisés</span>
             </div>
             <input
               type="checkbox"
@@ -1514,7 +1681,7 @@ export default function MarketingPage() {
       >
         <div className="space-y-4 text-xs text-left">
           <p className="text-[#6b5f4f] leading-relaxed">
-            Le code promo <strong className="text-[#153f2b]">"{selectedPromo?.code}"</strong> sera déplacé dans la corbeille. Vous pourrez le restaurer ou le supprimer définitivement depuis là.
+            Le code promo <strong className="text-[#153f2b]">&quot;{selectedPromo?.code}&quot;</strong> sera déplacé dans la corbeille. Vous pourrez le restaurer ou le supprimer définitivement depuis là.
           </p>
           <div className="flex justify-end gap-2 pt-2 border-t border-[#eadfca]/40">
             <button
@@ -1546,7 +1713,7 @@ export default function MarketingPage() {
       >
         <div className="space-y-4 text-xs text-left">
           <p className="text-[#6b5f4f] leading-relaxed">
-            Êtes-vous sûr de vouloir supprimer définitivement la société conventionnée <strong className="text-[#153f2b]">"{selectedPartner?.name}"</strong> ? Les clients associés seront détachés automatiquement.
+            Êtes-vous sûr de vouloir supprimer définitivement la société conventionnée <strong className="text-[#153f2b]">&quot;{selectedPartner?.name}&quot;</strong> ? Les clients associés seront détachés automatiquement.
           </p>
           <div className="flex justify-end gap-2 pt-2 border-t border-[#eadfca]/40">
             <button
@@ -1585,7 +1752,7 @@ export default function MarketingPage() {
 
           <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
             {promoHistoryLogs.length === 0 ? (
-              <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l'historique des codes promo.</div>
+              <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l&apos;historique des codes promo.</div>
             ) : (
               promoHistoryLogs.map((log) => (
                 <div key={log.id} className="p-4 border border-[#eadfca] rounded-xl bg-[#faf8f5] space-y-2 hover:border-[#c9a052]/30 transition-all text-left">
@@ -1659,7 +1826,7 @@ export default function MarketingPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#ede8de]">
-                      {promoDetails.stats.usageByClient.map((u: any) => (
+                      {promoDetails.stats.usageByClient.map((u) => (
                         <tr key={u.phone}>
                           <td className="p-2.5 font-semibold text-[#153f2b]">{u.name}</td>
                           <td className="p-2.5 font-mono text-[#6b5f4f]">{u.phone}</td>
@@ -1680,7 +1847,7 @@ export default function MarketingPage() {
             <div>
               <h4 className="font-bold text-[#153f2b] mb-2">Commandes utilisant ce code ({promoDetails.stats.ordersCount})</h4>
               {promoDetails.orders.length === 0 ? (
-                <p className="text-[#9b8f7a] italic">Aucune commande n'a utilisé ce code pour le moment.</p>
+                <p className="text-[#9b8f7a] italic">Aucune commande n&apos;a utilisé ce code pour le moment.</p>
               ) : (
                 <div className="border border-[#eadfca] rounded-xl overflow-hidden max-h-[35vh] overflow-y-auto">
                   <table className="w-full text-left">
@@ -1695,7 +1862,7 @@ export default function MarketingPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#ede8de]">
-                      {promoDetails.orders.map((o: any) => (
+                      {promoDetails.orders.map((o) => (
                         <tr key={o.id}>
                           <td className="p-2.5 font-mono font-semibold text-[#153f2b]">{o.orderNumber}</td>
                           <td className="p-2.5">{o.clientName}</td>

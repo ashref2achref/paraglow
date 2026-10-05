@@ -49,7 +49,7 @@ export default function ClearHistoryButton({ endpoint, onCleared }: ClearHistory
         className="px-3 py-1.5 border border-rose-200 bg-rose-50/50 hover:bg-rose-50 text-rose-700 hover:border-rose-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
       >
         <Trash2 className="w-3.5 h-3.5" />
-        Vider l'historique
+        Vider l&apos;historique
       </button>
 
       {isOpen && (
@@ -61,10 +61,10 @@ export default function ClearHistoryButton({ endpoint, onCleared }: ClearHistory
               </div>
               <div>
                 <h3 className="font-serif text-base font-bold text-[#153f2b] mb-1">
-                  Vider l'historique
+                  Vider l&apos;historique
                 </h3>
                 <p className="text-xs text-[#6b5f4f]/90 leading-relaxed">
-                  Cette action est irréversible. Souhaitez-vous effacer complètement l'historique de cette section ou conserver uniquement les 90 derniers jours ?
+                  Cette action est irréversible. Souhaitez-vous effacer complètement l&apos;historique de cette section ou conserver uniquement les 90 derniers jours ?
                 </p>
               </div>
             </div>

@@ -14,7 +14,13 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { email, password } = body
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    const password = typeof body.password === 'string' ? body.password : ''
+
+    if (!email || email.length > 254 || !email.includes('@') || !password || password.length > 256) {
+      return NextResponse.json({ error: 'Identifiants invalides' }, { status: 400 })
+    }
+
     const supabase = await createClient()
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -23,10 +29,10 @@ export async function POST(request: Request) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 401 })
+      return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 })
     }
 
-    const role = data.user.user_metadata?.role || data.user.app_metadata?.role
+    const role = data.user.app_metadata?.role
     if (role !== 'ADMIN') {
       await supabase.auth.signOut()
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })

@@ -100,7 +100,8 @@ export default function ParametresPage() {
   }
 
   useEffect(() => {
-    loadSettings()
+    const timer = window.setTimeout(() => void loadSettings(), 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   // Save specific settings domain
@@ -871,7 +872,7 @@ export default function ParametresPage() {
                     </button>
                   </div>
                   <p className="text-[9px] text-gray-400">
-                    Détermine la langue servie aux visiteurs arrivant sur le site sans préférence explicite (ni cookie, ni langue de navigateur reconnue). Le changement se propage sous quelques secondes. N'affecte pas les pages déjà traduites accessibles via leur préfixe (/en, /ar) : la liste des langues supportées reste définie dans le code (`routing.ts`) et nécessite une intervention développeur pour en ajouter une nouvelle.
+                    Détermine la langue servie aux visiteurs arrivant sur le site sans préférence explicite (ni cookie, ni langue de navigateur reconnue). Le changement se propage sous quelques secondes. N&apos;affecte pas les pages déjà traduites accessibles via leur préfixe (/en, /ar) : la liste des langues supportées reste définie dans le code (`routing.ts`) et nécessite une intervention développeur pour en ajouter une nouvelle.
                   </p>
                 </div>
 

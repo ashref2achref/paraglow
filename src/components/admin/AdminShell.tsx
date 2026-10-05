@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Toaster } from 'sonner'
+import { useHydrated } from '@/hooks/useHydrated'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -38,61 +40,72 @@ const NAV_ITEMS = [
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
+  const isLoginRoute = pathname === '/admin/login'
 
   // State for mobile drawer
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // State for collapsible sidebar (persisted)
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const mounted = useHydrated()
   const [alertCount, setAlertCount] = useState(0)
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0)
 
   useEffect(() => {
-    // Read state from localStorage
-    const saved = localStorage.getItem('admin-sidebar-collapsed') === 'true'
-    setIsCollapsed(saved)
-    setMounted(true)
+    const timer = window.setTimeout(() => {
+      setIsCollapsed(localStorage.getItem('admin-sidebar-collapsed') === 'true')
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
-  // Enregistrement du service worker admin (installabilité PWA, scope /admin)
+  // Register the admin PWA only in production. In development a service worker
+  // can keep stale Next.js chunks alive across HMR and make local navigation sluggish.
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
+    if (!('serviceWorker' in navigator)) return
+    if (process.env.NODE_ENV === 'production') {
       navigator.serviceWorker.register('/admin-sw.js', { scope: '/admin' }).catch(() => undefined)
+      return
+    }
+
+    void navigator.serviceWorker.getRegistrations().then((registrations) =>
+      Promise.all(
+        registrations
+          .filter((registration) => registration.scope.includes('/admin'))
+          .map((registration) => registration.unregister())
+      )
+    )
+    if ('caches' in window) {
+      void caches.keys().then((keys) =>
+        Promise.all(keys.filter((key) => key.startsWith('paraglow-admin-')).map((key) => caches.delete(key)))
+      )
     }
   }, [])
 
   useEffect(() => {
-    if (!mounted || pathname === '/admin/login') return
-    const fetchAlertCount = async () => {
-      try {
-        const res = await fetch('/api/admin/orders/alert-count')
-        const data = await res.json()
-        if (res.ok && data.count !== undefined) {
-          setAlertCount(data.count)
-        }
-      } catch {}
-    }
-    fetchAlertCount()
-    const interval = setInterval(fetchAlertCount, 30000) // refresh every 30s
-    return () => clearInterval(interval)
-  }, [mounted, pathname])
+    if (!mounted || isLoginRoute) return
 
-  useEffect(() => {
-    if (!mounted || pathname === '/admin/login') return
-    const fetchUnreadMessages = async () => {
+    let cancelled = false
+    const fetchNavSummary = async () => {
       try {
-        const res = await fetch('/api/admin/messages/unread-count')
-        const data = await res.json()
-        if (res.ok && data.unreadCount !== undefined) {
-          setUnreadMessagesCount(data.unreadCount)
+        const res = await fetch('/api/admin/nav-summary', { cache: 'no-store' })
+        const data = await res.json() as {
+          orderAlertCount?: number
+          unreadMessagesCount?: number
+        }
+        if (!cancelled && res.ok) {
+          setAlertCount(Number(data.orderAlertCount || 0))
+          setUnreadMessagesCount(Number(data.unreadMessagesCount || 0))
         }
       } catch {}
     }
-    fetchUnreadMessages()
-    const interval = setInterval(fetchUnreadMessages, 30000)
-    return () => clearInterval(interval)
-  }, [mounted, pathname])
+
+    void fetchNavSummary()
+    const interval = window.setInterval(fetchNavSummary, 45_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [mounted, isLoginRoute])
 
   const toggleSidebar = () => {
     const nextState = !isCollapsed
@@ -125,15 +138,15 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 bg-black/55 backdrop-blur-xs z-40 md:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-black/55 z-40 md:hidden transition-opacity duration-200"
         />
       )}
 
       {/* 2. Aside Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-screen bg-[#1b3a1e] flex flex-col z-50 text-white border-r border-[#c9a052]/10 transition-all duration-300 ${
+        className={`fixed top-0 left-0 h-[100dvh] bg-[#1b3a1e] flex flex-col z-50 text-white border-r border-[#c9a052]/10 transition-[transform,width] duration-200 ease-out ${
           // Mobile state
-          mobileOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0 ' + 
+          mobileOpen ? 'translate-x-0 w-[min(86vw,18rem)]' : '-translate-x-full md:translate-x-0 ' +
           // Desktop state (collapsed vs expanded)
           (isCollapsed ? 'w-[76px]' : 'w-64')
         }`}
@@ -141,7 +154,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         {/* Sidebar Header: Logo & Toggle button */}
         <div className="flex items-center justify-between px-4 py-5 border-b border-white/8 min-h-[73px]">
           {/* Logo */}
-          <div className={`flex items-center gap-2 overflow-hidden transition-all duration-300 ${isCollapsed && !mobileOpen ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+          <div className={`flex items-center gap-2 overflow-hidden transition-[width,opacity] duration-200 ${isCollapsed && !mobileOpen ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
             <span className="font-serif text-xl font-bold tracking-tight text-[#c9a052]">Para</span>
             <span className="font-serif text-xl font-bold tracking-tight text-white">Glow</span>
             <span className="text-[9px] uppercase tracking-widest text-white/40 ml-1.5 border border-white/10 px-1 py-0.5 rounded-sm">AD</span>
@@ -166,7 +179,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           {/* Close button (mobile only) */}
           <button
             onClick={() => setMobileOpen(false)}
-            className="md:hidden p-1.5 hover:bg-white/10 rounded-lg text-white/70 hover:text-white transition-colors cursor-pointer"
+            className="md:hidden w-11 h-11 inline-flex items-center justify-center hover:bg-white/10 rounded-xl text-white/70 hover:text-white transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -183,8 +196,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
+                onPointerEnter={() => router.prefetch(item.href)}
+                onTouchStart={() => router.prefetch(item.href)}
+                onFocus={() => router.prefetch(item.href)}
                 onClick={() => setMobileOpen(false)}
-                className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200 ${
+                className={`group relative min-h-11 flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-colors duration-150 ${
                   isActive
                     ? 'bg-[#c9a052] text-white shadow-md'
                     : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -194,7 +211,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 <Icon size={18} className={`flex-shrink-0 ${isActive ? 'text-white' : 'text-[#c9a052]/90 group-hover:text-white'}`} />
                 
                 {/* Nav Text */}
-                <span className={`transition-all duration-300 whitespace-nowrap overflow-hidden ${showCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+                <span className={`transition-[width,opacity] duration-200 whitespace-nowrap overflow-hidden ${showCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
                   {item.label}
                 </span>
 
@@ -249,15 +266,15 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
       {/* 3. Main Outer Content Area */}
       <div
-        className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ${
+        className={`flex-1 flex flex-col min-w-0 min-h-screen transition-[margin] duration-200 ease-out ${
           mobileOpen ? 'ml-0' : isCollapsed ? 'md:ml-[76px]' : 'md:ml-64'
         }`}
       >
         {/* Mobile Header Topbar */}
-        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-[#1b3a1e] text-white border-b border-[#c9a052]/10 sticky top-0 z-30 shadow-xs">
+        <header className="md:hidden min-h-14 flex items-center justify-between px-3 py-2 bg-[#1b3a1e] text-white border-b border-[#c9a052]/10 sticky top-0 z-30 shadow-xs">
           <button
             onClick={() => setMobileOpen(true)}
-            className="p-1.5 hover:bg-white/10 rounded-lg text-white transition-colors cursor-pointer"
+            className="w-11 h-11 inline-flex items-center justify-center hover:bg-white/10 rounded-xl text-white transition-colors cursor-pointer"
           >
             <Menu size={20} />
           </button>
@@ -270,13 +287,23 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </header>
 
         {/* Main content body container */}
-        <main className="p-4 sm:p-6 md:p-8 flex-1 min-w-0">
+        <main className="p-3 sm:p-5 md:p-8 flex-1 min-w-0">
           <div className="mx-auto w-full max-w-7xl min-w-0">
             {children}
           </div>
         </main>
       </div>
 
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          style: {
+            background: '#ffffff',
+            border: '1px solid #c9a052',
+            color: '#2a1f0e',
+          },
+        }}
+      />
     </div>
   )
 }

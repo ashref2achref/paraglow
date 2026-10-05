@@ -57,22 +57,17 @@ export async function POST(request: NextRequest) {
       const total = toOrderTotal(subtotal, deliveryFee, promo.promoDiscount)
       const orderNumber = await generateOrderNumber(tx)
 
-      const client = await tx.client.upsert({
-        where: { phone: normalizedPhone },
-        update: {
-          nom,
-          prenom,
-          email: guestEmail || undefined,
-          adresse: address || undefined,
-          wilaya: wilaya || undefined,
-        },
-        create: {
+      // A public checkout must not overwrite an existing CRM profile based only on
+      // knowledge of a phone number. Preserve the order-specific address on Order.
+      const existingClient = await tx.client.findUnique({ where: { phone: normalizedPhone } })
+      const client = existingClient ?? await tx.client.create({
+        data: {
           nom,
           prenom,
           phone: normalizedPhone,
           email: guestEmail,
           adresse: address,
-          wilaya: wilaya,
+          wilaya,
         },
       })
 
@@ -87,6 +82,7 @@ export async function POST(request: NextRequest) {
           guestEmail,
           guestPhone: normalizedPhone,
           wilaya,
+          deliveryAddress: address,
           status: 'PENDING',
           paymentMethod: 'CASH_ON_DELIVERY',
           deliveryMethod: 'STANDARD',

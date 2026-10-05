@@ -13,6 +13,22 @@ export class OrderValidationError extends Error {
   status = 400
 }
 
+const STOCK_RESERVED_STATUSES = new Set([
+  'CONFIRMED',
+  'PREPARING',
+  'SHIPPED',
+  'OUT_FOR_DELIVERY',
+  'DELIVERED',
+])
+
+export function isStockReservedStatus(status: string): boolean {
+  return STOCK_RESERVED_STATUSES.has(status)
+}
+
+export function consumesPromoUsage(status: string, isDeleted = false): boolean {
+  return !isDeleted && status !== 'CANCELLED'
+}
+
 export type IncomingOrderItem = {
   productId: string
   quantity: number
@@ -116,8 +132,10 @@ export async function priceOrderItems(tx: Prisma.TransactionClient, items: Incom
     if (!product) {
       throw new OrderValidationError('Produit indisponible ou supprimé')
     }
-    if (product.stock <= 0) {
-      throw new OrderValidationError(`Le produit "${product.name}" est en rupture de stock`)
+    if (product.stock < item.quantity) {
+      throw new OrderValidationError(
+        `Stock insuffisant pour "${product.name}" (demandé: ${item.quantity}, disponible: ${product.stock})`
+      )
     }
     const displayPrice = computeDisplayPrice(product)
     const unitPrice = displayPrice.finalPrice
@@ -266,7 +284,7 @@ export async function calculatePromo(
   if (promo.type === 'PERCENTAGE') {
     promoDiscount = roundPrice((applicableSubtotal * promo.value) / 100)
   } else if (promo.type === 'FIXED_AMOUNT') {
-    promoDiscount = roundPrice(promo.value)
+    promoDiscount = Math.min(roundPrice(promo.value), applicableSubtotal)
   } else if (promo.type === 'FREE_SHIPPING') {
     promoDiscount = roundPrice(input.deliveryFee)
   }
@@ -294,6 +312,14 @@ export async function incrementPromoUsage(tx: Prisma.TransactionClient, promoCod
     data: { usedCount: { increment: 1 } },
   })
   if (updated.count !== 1) throw new OrderValidationError('Code promo épuisé')
+}
+
+export async function decrementPromoUsage(tx: Prisma.TransactionClient, promoCodeId: string | null) {
+  if (!promoCodeId) return
+  await tx.promoCode.updateMany({
+    where: { id: promoCodeId, usedCount: { gt: 0 } },
+    data: { usedCount: { decrement: 1 } },
+  })
 }
 
 export async function decrementStock(tx: Prisma.TransactionClient, items: IncomingOrderItem[]) {

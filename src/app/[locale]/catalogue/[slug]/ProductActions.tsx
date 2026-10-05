@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ShoppingBag, Zap, Minus, Plus } from 'lucide-react'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
+import { localizedPath } from '@/lib/localizedPath'
 
 interface ProductActionsProps {
   product: {
@@ -57,10 +58,11 @@ export default function ProductActions({ product, translations, locale }: Produc
       image: product.image,
       code: product.code,
     }, qty)
-    router.push(`/${locale}/panier`)
+    router.push(localizedPath(locale, '/panier'))
   }
 
   return (
+    <>
     <div className="flex flex-col gap-4 mt-6">
       <div className="flex items-center gap-3">
         <span className="text-sm font-semibold text-[#153f2b]/70 font-sans">
@@ -113,5 +115,23 @@ export default function ProductActions({ product, translations, locale }: Produc
         </button>
       </div>
     </div>
+
+    {!isOutOfStock && (
+      <div className="fixed md:hidden z-40 inset-x-3 bottom-[76px] rounded-2xl border border-[#c9a052]/20 bg-white shadow-[0_14px_36px_rgba(21,63,43,.15)] p-2.5 flex items-center gap-3">
+        <div className="min-w-0 ps-1 flex-1">
+          <p className="text-[10px] uppercase tracking-wider text-[#153f2b]/45 truncate">{product.name}</p>
+          <p className="text-sm font-bold text-[#c9a052]">{product.sellingPriceTTC.toFixed(3)} TND</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleDirectCheckout}
+          className="h-11 px-5 rounded-xl bg-[#153f2b] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
+        >
+          <Zap className="w-4 h-4" />
+          {translations.commander}
+        </button>
+      </div>
+    )}
+    </>
   )
 }

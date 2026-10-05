@@ -49,18 +49,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
     }
 
-    const { 
-      code, 
-      type, 
-      value, 
-      minOrder, 
-      maxUses, 
+    const {
+      code,
+      type,
+      value,
+      minOrder,
+      maxUses,
       maxUsesPerClient,
       applicableCategories,
       applicableProducts,
-      startDate, 
-      endDate, 
-      isActive 
+      startDate,
+      endDate,
+      isActive
     } = validated.data
 
     // Check if code already exists
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({ promo }, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Promo code creation error:', error)
     console.error('Promo creation error:', error);
     return NextResponse.json({ error: 'Erreur lors de la création du code promo' }, { status: 500 })

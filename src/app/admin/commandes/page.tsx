@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import ClearHistoryButton from '@/components/admin/ClearHistoryButton'
 import ActionMenuPortal from '@/components/admin/ActionMenuPortal'
@@ -26,9 +26,9 @@ import {
   FileText
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import ProductImage from '@/components/ui/ProductImage'
 import Modal from '@/components/ui/Modal'
-import { exportToExcel } from '@/lib/excelExport'
 import { computeDisplayPrice } from '@/lib/productPricing'
 import { TUNISIAN_GOVERNORATES } from '@/lib/governorates'
 
@@ -58,7 +58,7 @@ interface Client {
 interface Order {
   id: string
   orderNumber: string
-  status: 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
+  status: 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'SHIPPED' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED' | 'REFUNDED'
   subtotal: number
   deliveryFee: number
   discount: number
@@ -73,7 +73,45 @@ interface Order {
   guestPhone?: string | null
   guestEmail?: string | null
   wilaya?: string | null
+  deliveryAddress?: string | null
   supprime: boolean
+}
+
+interface OrderSettings {
+  alertThresholdHours: number
+  defaultDeliveryFee: number
+  orderPrefix: string
+  defaultStatusInternal: Order['status']
+  enableWhatsAppLink: boolean
+}
+
+interface WizardProduct {
+  id: string
+  name: string
+  code: string
+  images?: string | null
+  sellingPriceTTC: number
+  remiseType?: 'AUCUNE' | 'POURCENTAGE' | 'PRIX_FIXE'
+  remiseValeur?: number | null
+  remiseVisible?: boolean
+  stock?: number
+}
+
+interface WizardItem {
+  productId: string
+  productName: string
+  productCode: string
+  price: number
+  quantity: number
+  image: string | null
+}
+
+interface PartnerDiscount {
+  id: string
+  name: string
+  isActive: boolean
+  discountType: 'PERCENTAGE' | 'FIXED'
+  discountValue: number
 }
 
 interface OrderLog {
@@ -153,6 +191,7 @@ export default function CommandesPage() {
 
   // Search & Filter states
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 320)
   const [statusTab, setStatusTab] = useState('all')
   const [source, setSource] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -182,11 +221,11 @@ export default function CommandesPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [orderLogs, setOrderLogs] = useState<OrderLog[]>([])
   const [historyLogs, setHistoryLogs] = useState<OrderLog[]>([])
-  const [historyPage, setHistoryPage] = useState(1)
-  const [historyTotalPages, setHistoryTotalPages] = useState(1)
+  const [, setHistoryPage] = useState(1)
+  const [, setHistoryTotalPages] = useState(1)
   
   // Status edit inline state
-  const [tempStatus, setTempStatus] = useState<Order['status']>('PENDING')
+  const [, setTempStatus] = useState<Order['status']>('PENDING')
 
   // Inline confirmations
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
@@ -194,7 +233,7 @@ export default function CommandesPage() {
   const [isConfirmingCancel, setIsConfirmingCancel] = useState(false)
 
   // Settings states
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<OrderSettings>({
     alertThresholdHours: 24,
     defaultDeliveryFee: 7.000,
     orderPrefix: 'PG-2026-',
@@ -207,14 +246,14 @@ export default function CommandesPage() {
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   // 1. Fetch Orders List
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true)
     try {
       const q = new URLSearchParams({
         page: String(page),
         limit: '20',
         status: statusTab === 'all' ? '' : statusTab,
-        search,
+        search: debouncedSearch,
         source,
         dateFrom,
         dateTo,
@@ -238,10 +277,10 @@ export default function CommandesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, statusTab, debouncedSearch, source, dateFrom, dateTo, minAmount, maxAmount, sort, showTrash])
 
   // 2. Fetch specific order details (for modal/deeplink)
-  const fetchOrderDetails = async (id: string) => {
+  const fetchOrderDetails = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/admin/orders/${id}`)
       const data = await res.json()
@@ -255,10 +294,10 @@ export default function CommandesPage() {
     } catch {
       toast.error('Erreur de chargement des détails')
     }
-  }
+  }, [])
 
   // Load Settings
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/settings')
       const data = await res.json()
@@ -266,7 +305,7 @@ export default function CommandesPage() {
         setSettings(JSON.parse(data.settings.commandes))
       }
     } catch {}
-  }
+  }, [])
 
   // Save Settings
   const saveSettings = async (e: React.FormEvent) => {
@@ -332,27 +371,13 @@ export default function CommandesPage() {
       } else {
         const errData = await res.json().catch(() => ({}))
         if (errData.error === 'INSUFFICIENT_STOCK') {
-          const productList = errData.products.map((p: any) => `- ${p.name} (Stock: ${p.stock}, Demandé: ${p.requested})`).join('\n')
-          const confirmForce = window.confirm(
-            `Attention : Le stock est insuffisant pour certains produits :\n${productList}\n\nVoulez-vous quand même confirmer la commande (le stock deviendra négatif) ?`
-          )
-          if (confirmForce) {
-            const forceRes = await fetch(`/api/admin/orders/${order.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ confiremee: nextConfirm, force: true })
-            })
-            if (forceRes.ok) {
-              toast.success('Commande confirmée avec stock négatif !')
-              fetchOrders()
-              if (selectedOrder && selectedOrder.id === order.id) {
-                fetchOrderDetails(order.id)
-              }
-            } else {
-              const forceErr = await forceRes.json().catch(() => ({}))
-              toast.error(forceErr.error || 'Erreur lors de la confirmation forcée')
-            }
-          }
+          const products = Array.isArray(errData.products) ? errData.products : []
+          const productList = products
+            .map((product: { name: string; stock: number; requested: number }) =>
+              `${product.name}: stock ${product.stock}, demandé ${product.requested}`
+            )
+            .join(' · ')
+          toast.error(productList ? `Stock insuffisant — ${productList}` : 'Stock insuffisant pour confirmer cette commande.')
         } else {
           toast.error(errData.error || 'Erreur de modification')
         }
@@ -381,28 +406,13 @@ export default function CommandesPage() {
       } else {
         const errData = await res.json().catch(() => ({}))
         if (errData.error === 'INSUFFICIENT_STOCK') {
-          const productList = errData.products.map((p: any) => `- ${p.name} (Stock: ${p.stock}, Demandé: ${p.requested})`).join('\n')
-          const confirmForce = window.confirm(
-            `Attention : Le stock est insuffisant pour certains produits :\n${productList}\n\nVoulez-vous quand même confirmer la commande (le stock deviendra négatif) ?`
-          )
-          if (confirmForce) {
-            const forceRes = await fetch(`/api/admin/orders/${orderId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status, force: true })
-            })
-            if (forceRes.ok) {
-              toast.success('Statut mis à jour avec stock négatif !')
-              setIsStatusModalOpen(false)
-              fetchOrders()
-              if (selectedOrder && selectedOrder.id === orderId) {
-                fetchOrderDetails(orderId)
-              }
-            } else {
-              const forceErr = await forceRes.json().catch(() => ({}))
-              toast.error(forceErr.error || 'Erreur lors du changement de statut')
-            }
-          }
+          const products = Array.isArray(errData.products) ? errData.products : []
+          const productList = products
+            .map((product: { name: string; stock: number; requested: number }) =>
+              `${product.name}: stock ${product.stock}, demandé ${product.requested}`
+            )
+            .join(' · ')
+          toast.error(productList ? `Stock insuffisant — ${productList}` : 'Stock insuffisant pour ce changement de statut.')
         } else {
           toast.error(errData.error || 'Erreur lors du changement de statut')
         }
@@ -487,16 +497,18 @@ export default function CommandesPage() {
         return
       }
 
-      const rows = data.orders.map((o: any) => {
+      const rows = (data.orders as Order[]).map((o) => {
         const clientName = o.client ? `${o.client.prenom} ${o.client.nom}` : o.guestName || 'Glow Client'
         const clientPhone = o.guestPhone || o.client?.phone || 'Non renseigné'
-        const address = [o.shippingAddress, o.shippingCity, o.shippingPostalCode].filter(Boolean).join(', ') || 'Non renseignée'
+        const address = o.deliveryAddress || o.client?.adresse || 'Non renseignée'
         const statusLabel = 
           o.status === 'PENDING' ? 'En attente' :
           o.status === 'CONFIRMED' ? 'Confirmée' :
           o.status === 'PREPARING' ? 'Préparation' :
           o.status === 'SHIPPED' ? 'Expédiée' :
-          o.status === 'DELIVERED' ? 'Livrée' : 'Annulée'
+          o.status === 'OUT_FOR_DELIVERY' ? 'En livraison' :
+          o.status === 'DELIVERED' ? 'Livrée' :
+          o.status === 'REFUNDED' ? 'Remboursée' : 'Annulée'
 
         return {
           orderNumber: o.orderNumber,
@@ -508,13 +520,14 @@ export default function CommandesPage() {
           statusLabel,
           subtotal: o.subtotal,
           discount: o.discount,
-          shippingFee: o.shippingFee,
+          shippingFee: o.deliveryFee,
           total: o.total,
           date: new Date(o.createdAt).toLocaleDateString('fr-FR'),
           confirmee: o.confirmee ? 'Oui' : 'Non',
         }
       })
 
+      const { exportToExcel } = await import('@/lib/excelExport')
       await exportToExcel({
         filename: `commandes_paraglow_${new Date().toISOString().split('T')[0]}`,
         sheets: [
@@ -548,16 +561,18 @@ export default function CommandesPage() {
 
   // Trigger loading list
   useEffect(() => {
-    fetchOrders()
-  }, [page, statusTab, source, dateFrom, dateTo, minAmount, maxAmount, sort, showTrash])
+    const timer = window.setTimeout(() => void fetchOrders(), 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchOrders])
 
   // Check deeplink on mount
   useEffect(() => {
-    if (urlId) {
-      fetchOrderDetails(urlId)
-    }
-    loadSettings()
-  }, [urlId])
+    const timer = window.setTimeout(() => {
+      if (urlId) void fetchOrderDetails(urlId)
+      void loadSettings()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [urlId, fetchOrderDetails, loadSettings])
 
   // Reset filters
   const resetFilters = () => {
@@ -681,8 +696,10 @@ export default function CommandesPage() {
             { id: 'CONFIRMED', label: 'Confirmées', color: 'bg-blue-50 text-blue-700' },
             { id: 'PREPARING', label: 'En préparation', color: 'bg-amber-50 text-amber-700' },
             { id: 'SHIPPED', label: 'Expédiées', color: 'bg-purple-50 text-purple-700' },
+            { id: 'OUT_FOR_DELIVERY', label: 'En livraison', color: 'bg-cyan-50 text-cyan-700' },
             { id: 'DELIVERED', label: 'Livrées', color: 'bg-emerald-50 text-emerald-700' },
-            { id: 'CANCELLED', label: 'Annulées', color: 'bg-rose-50 text-rose-700' }
+            { id: 'CANCELLED', label: 'Annulées', color: 'bg-rose-50 text-rose-700' },
+            { id: 'REFUNDED', label: 'Remboursées', color: 'bg-slate-100 text-slate-700' }
           ].map(tab => {
             const isActive = statusTab === tab.id
             const count = tab.id === 'all' ? tabCounts.all : tabCounts[tab.id]
@@ -846,7 +863,7 @@ export default function CommandesPage() {
           <div className="py-20 text-center font-sans text-xs">
             <ShoppingBag className="w-12 h-12 text-[#c9a052]/30 mx-auto mb-3" strokeWidth={1.5} />
             <p className="font-bold text-[#153f2b]">Aucune commande trouvée</p>
-            <p className="text-[#6b5f4f]/80 mt-1">Essayez d'ajuster les filtres ou de créer une nouvelle commande.</p>
+            <p className="text-[#6b5f4f]/80 mt-1">Essayez d&apos;ajuster les filtres ou de créer une nouvelle commande.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -928,14 +945,18 @@ export default function CommandesPage() {
                           o.status === 'CONFIRMED' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                           o.status === 'PREPARING' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
                           o.status === 'SHIPPED' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                          o.status === 'OUT_FOR_DELIVERY' ? 'bg-cyan-50 text-cyan-700 border border-cyan-200' :
                           o.status === 'DELIVERED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          o.status === 'REFUNDED' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
                           'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}>
                           {o.status === 'PENDING' ? 'En attente' :
                            o.status === 'CONFIRMED' ? 'Confirmée' :
                            o.status === 'PREPARING' ? 'Préparation' :
                            o.status === 'SHIPPED' ? 'Expédiée' :
-                           o.status === 'DELIVERED' ? 'Livrée' : 'Annulée'}
+                           o.status === 'OUT_FOR_DELIVERY' ? 'En livraison' :
+                           o.status === 'DELIVERED' ? 'Livrée' :
+                           o.status === 'REFUNDED' ? 'Remboursée' : 'Annulée'}
                         </span>
                       </td>
 
@@ -1622,7 +1643,7 @@ export default function CommandesPage() {
                 <label className="block text-[10px] font-semibold text-[#6b7d53] uppercase mb-1.5">Statut initial Commande Interne</label>
                 <select
                   value={settings.defaultStatusInternal}
-                  onChange={(e) => setSettings({ ...settings, defaultStatusInternal: e.target.value })}
+                  onChange={(e) => setSettings({ ...settings, defaultStatusInternal: e.target.value as Order['status'] })}
                   className="w-full px-3 py-2 border border-[#d5cfc0] rounded-lg bg-[#faf8f5] focus:outline-none focus:border-[#1b3a1e] text-xs font-semibold text-[#2a1f0e]"
                 >
                   <option value="CONFIRMED">Confirmée (CONFIRMED)</option>
@@ -1683,7 +1704,7 @@ export default function CommandesPage() {
           {/* Scrollable list */}
           <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
             {historyLogs.length === 0 ? (
-              <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l'historique des commandes.</div>
+              <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l&apos;historique des commandes.</div>
             ) : (
               historyLogs.map((log) => (
                 <div key={log.id} className="p-4 border border-[#eadfca] rounded-xl bg-[#faf8f5] space-y-2 hover:border-[#c9a052]/30 transition-all text-left">
@@ -1723,9 +1744,10 @@ function OrderWizardModal({
 }: {
   onClose: () => void
   onSuccess: () => void
-  settings: any
+  settings: OrderSettings
   locale: string
 }) {
+  void locale
   const [step, setStep] = useState(1)
 
   // Step 1: Client Info
@@ -1742,8 +1764,8 @@ function OrderWizardModal({
 
   // Step 2: Product Search & Add Items
   const [productSearch, setProductSearch] = useState('')
-  const [matchingProducts, setMatchingProducts] = useState<any[]>([])
-  const [addedItems, setAddedItems] = useState<any[]>([])
+  const [matchingProducts, setMatchingProducts] = useState<WizardProduct[]>([])
+  const [addedItems, setAddedItems] = useState<WizardItem[]>([])
 
   // Step 3: Delivery Options & Confirm
   const [deliveryFee, setDeliveryFee] = useState(settings.defaultDeliveryFee)
@@ -1753,56 +1775,50 @@ function OrderWizardModal({
   const [submitting, setSubmitting] = useState(false)
 
   // Partners list for corporate discount checks
-  const [partners, setPartners] = useState<any[]>([])
+  const [partners, setPartners] = useState<PartnerDiscount[]>([])
 
-  // Load partners on mount
+  // Load partners on mount.
   useEffect(() => {
-    const fetchPartners = async () => {
+    const timer = window.setTimeout(async () => {
       try {
         const res = await fetch('/api/admin/partners')
         const data = await res.json()
-        if (res.ok) {
-          setPartners(data.partners || [])
-        }
+        if (res.ok) setPartners(data.partners || [])
       } catch {}
-    }
-    fetchPartners()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
-  // Search clients from DB
+  // Search clients from DB.
   useEffect(() => {
-    if (clientSearch.trim().length < 2) {
-      setMatchingClients([])
-      return
-    }
-    const delay = setTimeout(async () => {
+    const delay = window.setTimeout(async () => {
+      if (clientSearch.trim().length < 2) {
+        setMatchingClients([])
+        return
+      }
       try {
-        const res = await fetch(`/api/admin/customers?search=${clientSearch}`)
+        const res = await fetch(`/api/admin/customers?search=${encodeURIComponent(clientSearch)}`)
         const data = await res.json()
-        if (res.ok) {
-          setMatchingClients(data.customers || [])
-        }
+        if (res.ok) setMatchingClients(data.customers || [])
       } catch {}
-    }, 300)
-    return () => clearTimeout(delay)
+    }, clientSearch.trim().length < 2 ? 0 : 300)
+    return () => window.clearTimeout(delay)
   }, [clientSearch])
 
-  // Search products from DB
+  // Search products from DB.
   useEffect(() => {
-    if (productSearch.trim().length < 2) {
-      setMatchingProducts([])
-      return
-    }
-    const delay = setTimeout(async () => {
+    const delay = window.setTimeout(async () => {
+      if (productSearch.trim().length < 2) {
+        setMatchingProducts([])
+        return
+      }
       try {
-        const res = await fetch(`/api/admin/products?search=${productSearch}&limit=8`)
+        const res = await fetch(`/api/admin/products?search=${encodeURIComponent(productSearch)}&limit=8`)
         const data = await res.json()
-        if (res.ok) {
-          setMatchingProducts(data.products || [])
-        }
+        if (res.ok) setMatchingProducts(data.products || [])
       } catch {}
-    }, 300)
-    return () => clearTimeout(delay)
+    }, productSearch.trim().length < 2 ? 0 : 300)
+    return () => window.clearTimeout(delay)
   }, [productSearch])
 
   // Subtotals
@@ -1834,7 +1850,7 @@ function OrderWizardModal({
     setMatchingClients([])
   }
 
-  const handleAddProduct = (prod: any) => {
+  const handleAddProduct = (prod: WizardProduct) => {
     const existing = addedItems.find(it => it.productId === prod.id)
     if (existing) {
       setAddedItems(addedItems.map(it => 
@@ -1843,7 +1859,7 @@ function OrderWizardModal({
     } else {
       let image = null
       try {
-        const parsed = JSON.parse(prod.images)
+        const parsed = JSON.parse(prod.images || '[]')
         if (Array.isArray(parsed) && parsed.length > 0) image = parsed[0]
       } catch {}
 
@@ -2167,7 +2183,7 @@ function OrderWizardModal({
                 <label className="block text-[10px] font-bold text-[#6b7d53] uppercase mb-1">Statut initial</label>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  onChange={(e) => setStatus(e.target.value as Order['status'])}
                   className="w-full px-3 py-2 border border-[#eadfca] rounded-xl text-xs font-semibold"
                 >
                   <option value="CONFIRMED">Confirmée (CONFIRMED)</option>

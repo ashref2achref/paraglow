@@ -6,6 +6,7 @@ import { generateOrderNumber } from '@/lib/orderNumber'
 import {
   OrderValidationError,
   decrementStock,
+  isStockReservedStatus,
   normalizeIncomingOrderItems,
   priceOrderItems,
   splitCustomerName,
@@ -244,7 +245,7 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      const shouldBeConfirmed = ['CONFIRMED', 'PREPARING', 'SHIPPED', 'DELIVERED'].includes(orderStatus)
+      const shouldBeConfirmed = isStockReservedStatus(orderStatus)
       if (shouldBeConfirmed) {
         await decrementStock(tx, incomingItems)
       }
@@ -256,6 +257,7 @@ export async function POST(request: NextRequest) {
           guestPhone: clientPhone,
           guestEmail: clientEmail,
           wilaya: clientWilaya,
+          deliveryAddress: clientAddress,
           status: orderStatus,
           paymentMethod: 'CASH_ON_DELIVERY',
           deliveryMethod: 'STANDARD',

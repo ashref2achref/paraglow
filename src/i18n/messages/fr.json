@@ -259,7 +259,6 @@
     "governorateRequired": "Gouvernorat requis",
     "governoratePlaceholder": "-- Choisir le gouvernorat --",
     "emptyDescription": "Votre panier est encore vide. Explorez notre catalogue pour y ajouter les meilleurs soins et produits de santé.",
-    "emptyCTA": "Découvrir nos produits",
     "freeDeliveryHeader": "Félicitations ! Vous bénéficiez de la livraison gratuite",
     "freeDeliverySub": "La livraison de votre colis est entièrement offerte.",
     "moreForFreeDelivery": "Plus que {amount} pour la livraison gratuite",

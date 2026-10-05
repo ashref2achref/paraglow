@@ -6,6 +6,7 @@ import { SLOTS_BY_PAGE, type MediaSlot } from '@/config/mediaSlots'
 import { Upload, Trash2, X, Check, AlertTriangle, Clock, Settings } from 'lucide-react'
 import ClearHistoryButton from '@/components/admin/ClearHistoryButton'
 import Modal from '@/components/ui/Modal'
+import { createClient as createSupabaseBrowserClient } from '@/utils/supabase/client'
 
 interface SiteMedia {
   id: string
@@ -35,8 +36,8 @@ interface MediaSettings {
 
 const DEFAULT_SETTINGS: MediaSettings = {
   imageQuality: 85,
-  maxImageSizeMB: 15,
-  maxVideoSizeMB: 100,
+  maxImageSizeMB: 4,
+  maxVideoSizeMB: 25,
   allowedImageTypes: 'image/jpeg,image/png,image/webp',
   allowedVideoTypes: 'video/mp4,video/webm',
 }
@@ -68,6 +69,7 @@ export default function PhotosSitePage() {
   // Tracks the latest upload attempt per slot so a stale (superseded) upload
   // never overwrites the state of a newer upload started for the same slot.
   const uploadTokensRef = useRef<Record<string, number>>({})
+  const uploadSequenceRef = useRef(0)
 
   const showToast = useCallback((msg: string, type: 'success' | 'error') => {
     setToast({ msg, type })
@@ -100,7 +102,12 @@ export default function PhotosSitePage() {
       const res = await fetch('/api/admin/settings')
       const data = await res.json()
       if (res.ok && data.settings?.photosSite) {
-        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(data.settings.photosSite) })
+        const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(data.settings.photosSite) }
+        setSettings({
+          ...parsed,
+          maxImageSizeMB: Math.min(4, Math.max(1, Number(parsed.maxImageSizeMB) || 4)),
+          maxVideoSizeMB: Math.min(100, Math.max(1, Number(parsed.maxVideoSizeMB) || 25)),
+        })
       }
     } catch { /* ignore */ }
   }, [])
@@ -114,9 +121,12 @@ export default function PhotosSitePage() {
   }, [])
 
   useEffect(() => {
-    loadMedia()
-    loadTrashCount()
-    loadSettings()
+    const timer = window.setTimeout(() => {
+      void loadMedia()
+      void loadTrashCount()
+      void loadSettings()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [loadMedia, loadTrashCount, loadSettings])
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -148,63 +158,126 @@ export default function PhotosSitePage() {
 
   const handleUpload = async (slot: MediaSlot, file: File, alt: string) => {
     const isVideo = file.type.startsWith('video/')
-    const maxSize = (isVideo ? settings.maxVideoSizeMB : settings.maxImageSizeMB) * 1024 * 1024
 
+    if (isVideo && !slot.acceptVideo) {
+      showToast('Ce bloc n’accepte que les images', 'error')
+      return
+    }
+
+    const maxSize = (isVideo ? settings.maxVideoSizeMB : settings.maxImageSizeMB) * 1024 * 1024
     if (file.size > maxSize) {
       const maxMb = isVideo ? settings.maxVideoSizeMB : settings.maxImageSizeMB
       showToast(`Fichier trop volumineux. Maximum : ${maxMb} Mo`, 'error')
       return
     }
 
-    const token = Date.now() + Math.random()
+    uploadSequenceRef.current += 1
+    const token = uploadSequenceRef.current
     uploadTokensRef.current[slot.key] = token
+    setUploadProgress((progress) => ({ ...progress, [slot.key]: 8 }))
 
-    setUploadProgress((p) => ({ ...p, [slot.key]: 10 }))
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('slotKey', slot.key)
-    if (alt) formData.append('alt', alt)
-
-    const interval = setInterval(() => {
-      if (uploadTokensRef.current[slot.key] !== token) {
-        clearInterval(interval)
-        return
-      }
-      setUploadProgress((p) => ({ ...p, [slot.key]: Math.min((p[slot.key] || 0) + 15, 85) }))
-    }, 200)
+    let stagedVideoPath: string | null = null
 
     try {
-      const res = await fetch('/api/admin/media', { method: 'POST', body: formData })
+      if (isVideo) {
+        const prepareResponse = await fetch('/api/admin/media/upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slotKey: slot.key,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+          }),
+        })
+        const prepareData = await prepareResponse.json() as {
+          path?: string
+          token?: string
+          error?: string
+        }
 
-      // A newer upload for this same slot has started since — ignore this stale result.
-      if (uploadTokensRef.current[slot.key] !== token) return
+        if (!prepareResponse.ok || !prepareData.path || !prepareData.token) {
+          throw new Error(prepareData.error || 'Impossible de préparer l’upload vidéo')
+        }
+        stagedVideoPath = prepareData.path
+        if (uploadTokensRef.current[slot.key] !== token) return
 
-      clearInterval(interval)
-      setUploadProgress((p) => ({ ...p, [slot.key]: 100 }))
+        setUploadProgress((progress) => ({ ...progress, [slot.key]: 28 }))
 
-      if (res.ok) {
-        showToast(`${slot.label} mis à jour avec succès`, 'success')
-        await loadMedia()
-        await loadTrashCount()
+        const supabase = createSupabaseBrowserClient()
+        const { error: uploadError } = await supabase.storage
+          .from('site-media')
+          .uploadToSignedUrl(prepareData.path, prepareData.token, file, {
+            contentType: file.type,
+            cacheControl: '31536000',
+          })
+
+        if (uploadError) {
+          throw new Error('Échec de l’upload vidéo vers le stockage')
+        }
+        if (uploadTokensRef.current[slot.key] !== token) return
+
+        setUploadProgress((progress) => ({ ...progress, [slot.key]: 86 }))
+
+        const finalizeResponse = await fetch('/api/admin/media/finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slotKey: slot.key,
+            path: prepareData.path,
+            fileType: file.type,
+            fileSize: file.size,
+            alt,
+          }),
+        })
+        const finalizeData = await finalizeResponse.json() as { error?: string }
+
+        if (!finalizeResponse.ok) {
+          throw new Error(finalizeData.error || 'Impossible de finaliser la vidéo')
+        }
+        stagedVideoPath = null
       } else {
-        const data = await res.json()
-        showToast(data.error || 'Erreur lors de l\'upload', 'error')
-      }
-    } catch {
-      if (uploadTokensRef.current[slot.key] !== token) return
-      clearInterval(interval)
-      showToast('Erreur réseau', 'error')
-    }
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('slotKey', slot.key)
+        if (alt) formData.append('alt', alt)
 
-    setTimeout(() => {
+        setUploadProgress((progress) => ({ ...progress, [slot.key]: 30 }))
+        const response = await fetch('/api/admin/media', { method: 'POST', body: formData })
+        const data = await response.json() as { error?: string }
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Erreur lors de l’upload')
+        }
+      }
+
       if (uploadTokensRef.current[slot.key] !== token) return
-      setUploadProgress((p) => {
-        const next = { ...p }
-        delete next[slot.key]
-        return next
-      })
-    }, 500)
+
+      setUploadProgress((progress) => ({ ...progress, [slot.key]: 100 }))
+      showToast(`${slot.label} mis à jour avec succès`, 'success')
+      await Promise.all([loadMedia(), loadTrashCount()])
+    } catch (error) {
+      if (stagedVideoPath) {
+        try {
+          await fetch('/api/admin/media/upload-url', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: stagedVideoPath }),
+          })
+        } catch {}
+      }
+      if (uploadTokensRef.current[slot.key] !== token) return
+      showToast(error instanceof Error ? error.message : 'Erreur réseau', 'error')
+    } finally {
+      window.setTimeout(() => {
+        if (uploadTokensRef.current[slot.key] !== token) return
+        setUploadProgress((progress) => {
+          const next = { ...progress }
+          delete next[slot.key]
+          return next
+        })
+      }, 650)
+    }
   }
 
   const handleDelete = async (slotKey: string) => {
@@ -293,14 +366,14 @@ export default function PhotosSitePage() {
                 <X size={18} />
               </button>
             </div>
-            <p style={{ fontSize: '12px', color: '#6b5f4f', marginBottom: '16px' }}>Suivi des ajouts, remplacements, suppressions et restaurations d'images/vidéos.</p>
+            <p style={{ fontSize: '12px', color: '#6b5f4f', marginBottom: '16px' }}>Suivi des ajouts, remplacements, suppressions et restaurations d&apos;images/vidéos.</p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
               <ClearHistoryButton endpoint="/api/admin/logs/media" onCleared={loadHistoryLogs} />
             </div>
 
             {historyLogs.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 0', color: '#9b8f7a', fontSize: '13px', fontStyle: 'italic' }}>
-                Aucun log enregistré dans l'historique des médias.
+                Aucun log enregistré dans l&apos;historique des médias.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -370,7 +443,7 @@ export default function PhotosSitePage() {
                     Taille max vidéos (Mo)
                   </label>
                   <input
-                    type="number" min={1}
+                    type="number" min={1} max={100}
                     value={settings.maxVideoSizeMB}
                     onChange={(e) => setSettings((s) => ({ ...s, maxVideoSizeMB: Number(e.target.value) }))}
                     style={{ width: '100%', padding: '8px 10px', border: '1px solid #eadfca', borderRadius: '8px', fontSize: '13px' }}
@@ -380,7 +453,7 @@ export default function PhotosSitePage() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#6b7d53', textTransform: 'uppercase', marginBottom: '4px' }}>
-                  Types d'images acceptés
+                  Types d&apos;images acceptés
                 </label>
                 <input
                   type="text"
@@ -519,6 +592,7 @@ export default function PhotosSitePage() {
                 progress={progress || 0}
                 onUpload={(file, alt) => handleUpload(slot, file, alt)}
                 onDelete={() => setDeleteConfirm(slot.key)}
+                videoLimitMB={settings.maxVideoSizeMB}
               />
             )
           })}
@@ -540,14 +614,18 @@ interface SlotCardProps {
   progress: number
   onUpload: (file: File, alt: string) => void
   onDelete: () => void
+  videoLimitMB: number
 }
 
-function SlotCard({ slot, media, isUploading, progress, onUpload, onDelete }: SlotCardProps) {
+function SlotCard({ slot, media, isUploading, progress, onUpload, onDelete, videoLimitMB }: SlotCardProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
   const [altDraft, setAltDraft] = useState(media?.alt || '')
 
-  useEffect(() => { setAltDraft(media?.alt || '') }, [media?.alt])
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAltDraft(media?.alt || ''), 0)
+    return () => window.clearTimeout(timer)
+  }, [media?.alt])
 
   const handleFile = (file: File) => {
     onUpload(file, altDraft)
@@ -599,7 +677,6 @@ function SlotCard({ slot, media, isUploading, progress, onUpload, onDelete }: Sl
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={media.url}
               alt={media.alt || slot.label}
@@ -631,7 +708,9 @@ function SlotCard({ slot, media, isUploading, progress, onUpload, onDelete }: Sl
         <input
           ref={fileRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+          accept={slot.acceptVideo
+            ? 'image/jpeg,image/png,image/webp,video/mp4,video/webm'
+            : 'image/jpeg,image/png,image/webp'}
           style={{ display: 'none' }}
           onChange={(e) => {
             const file = e.target.files?.[0]
@@ -647,7 +726,7 @@ function SlotCard({ slot, media, isUploading, progress, onUpload, onDelete }: Sl
           {slot.label}
         </h3>
         <p style={{ fontSize: '11px', color: '#9b8f7a', marginBottom: '10px' }}>
-          Recommandé : {slot.recommended} {slot.acceptVideo && '• Vidéo acceptée'}
+          Recommandé : {slot.recommended} {slot.acceptVideo && `• Vidéo MP4/WebM acceptée · max ${videoLimitMB} Mo`}
         </p>
 
         <input

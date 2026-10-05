@@ -6,13 +6,42 @@ import Container from '@/components/ui/Container'
 import { contactConfig } from '@/config/contact'
 import { getTranslations } from 'next-intl/server'
 import prisma from '@/lib/prisma'
+import { localizedPath } from '@/lib/localizedPath'
+
+// Brand Custom SVG Icons
+const FacebookIcon = () => (
+  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+    <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c4.56-.93 8-4.96 8-9.75z" />
+  </svg>
+)
+
+const InstagramIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+  </svg>
+)
+
+const TikTokIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.86-.74-3.95-1.72-.07 2.39-.01 4.79-.04 7.18-.08 2.01-.6 4.1-1.89 5.66-1.57 2.01-4.2 3.12-6.72 2.91-2.97-.18-5.74-2.15-6.64-5.02-.97-2.95-.14-6.47 2.08-8.58 1.69-1.66 4.11-2.48 6.43-2.23v4.27c-1.21-.16-2.5.17-3.39 1.05-.9 1.02-1.07 2.62-.39 3.84.62 1.15 2.01 1.83 3.32 1.63 1.25-.15 2.27-1.22 2.37-2.48.06-2.97.02-5.94.03-8.91 0-2.37.01-4.73.01-7.1 0-.33-.02-.66-.03-.99z" />
+  </svg>
+)
+
+const WhatsAppIcon = () => (
+  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.413 9.863-9.83.001-2.624-1.013-5.091-2.859-6.94A9.799 9.799 0 0 0 12.012 2.03c-5.439 0-9.865 4.413-9.869 9.832-.001 2.012.528 3.97 1.529 5.704L2.68 21.052l3.967-1.898zm11.313-6.5c-.328-.164-1.94-.957-2.24-1.066-.3-.11-.52-.164-.74.164-.22.328-.85 1.066-1.042 1.284-.19.219-.38.246-.708.082-.328-.164-1.386-.51-2.64-1.627-.977-.872-1.637-1.95-1.828-2.28-.19-.328-.02-.505.143-.669.148-.148.329-.383.493-.574.164-.192.22-.328.329-.547.11-.219.055-.411-.027-.574-.083-.164-.74-1.78-.99-2.4-.247-.59-.5-.51-.722-.52-.187-.01-.403-.01-.62-.01-.217 0-.57.082-.868.41-.3.327-1.139 1.12-1.139 2.733 0 1.613 1.168 3.167 1.33 3.385.163.22 2.298 3.511 5.568 4.92 1.08.468 1.91.748 2.563.957.904.288 1.728.247 2.378.15.725-.108 1.94-.793 2.214-1.52.274-.727.274-1.35.19-1.48-.08-.13-.3-.219-.628-.383z" />
+  </svg>
+)
+
 
 export default async function Footer({ locale = 'fr' }: { locale?: string }) {
   const t = await getTranslations({ locale, namespace: 'footer' })
   const tNav = await getTranslations({ locale, namespace: 'nav' })
 
   // Load boutique settings from DB
-  let boutique = {
+  const boutique = {
     email: contactConfig.email,
     phones: contactConfig.phones,
     address: contactConfig.address,
@@ -72,33 +101,6 @@ export default async function Footer({ locale = 'fr' }: { locale?: string }) {
     ]
   }
 
-  // Brand Custom SVG Icons
-  const FacebookIcon = () => (
-    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c4.56-.93 8-4.96 8-9.75z" />
-    </svg>
-  )
-
-  const InstagramIcon = () => (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-    </svg>
-  )
-
-  const TikTokIcon = () => (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.86-.74-3.95-1.72-.07 2.39-.01 4.79-.04 7.18-.08 2.01-.6 4.1-1.89 5.66-1.57 2.01-4.2 3.12-6.72 2.91-2.97-.18-5.74-2.15-6.64-5.02-.97-2.95-.14-6.47 2.08-8.58 1.69-1.66 4.11-2.48 6.43-2.23v4.27c-1.21-.16-2.5.17-3.39 1.05-.9 1.02-1.07 2.62-.39 3.84.62 1.15 2.01 1.83 3.32 1.63 1.25-.15 2.27-1.22 2.37-2.48.06-2.97.02-5.94.03-8.91 0-2.37.01-4.73.01-7.1 0-.33-.02-.66-.03-.99z" />
-    </svg>
-  )
-
-  const WhatsAppIcon = () => (
-    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.413 9.863-9.83.001-2.624-1.013-5.091-2.859-6.94A9.799 9.799 0 0 0 12.012 2.03c-5.439 0-9.865 4.413-9.869 9.832-.001 2.012.528 3.97 1.529 5.704L2.68 21.052l3.967-1.898zm11.313-6.5c-.328-.164-1.94-.957-2.24-1.066-.3-.11-.52-.164-.74.164-.22.328-.85 1.066-1.042 1.284-.19.219-.38.246-.708.082-.328-.164-1.386-.51-2.64-1.627-.977-.872-1.637-1.95-1.828-2.28-.19-.328-.02-.505.143-.669.148-.148.329-.383.493-.574.164-.192.22-.328.329-.547.11-.219.055-.411-.027-.574-.083-.164-.74-1.78-.99-2.4-.247-.59-.5-.51-.722-.52-.187-.01-.403-.01-.62-.01-.217 0-.57.082-.868.41-.3.327-1.139 1.12-1.139 2.733 0 1.613 1.168 3.167 1.33 3.385.163.22 2.298 3.511 5.568 4.92 1.08.468 1.91.748 2.563.957.904.288 1.728.247 2.378.15.725-.108 1.94-.793 2.214-1.52.274-.727.274-1.35.19-1.48-.08-.13-.3-.219-.628-.383z" />
-    </svg>
-  )
-
   const addressVal = locale === 'ar' ? boutique.addressAr : boutique.address
   const hoursVal = locale === 'ar' ? "7 أيام/7 · 09:30 - 22:00" : locale === 'en' ? "7d/7 · 09:30 AM - 10:00 PM" : boutique.hours
 
@@ -125,7 +127,7 @@ export default async function Footer({ locale = 'fr' }: { locale?: string }) {
           
           {/* ── Column 1: Brand Info ── */}
           <div className="flex flex-col gap-4 text-start">
-            <Link href={`/${locale}`} className="inline-block">
+            <Link href={localizedPath(locale, '/')} className="inline-block">
               <Image
                 src="/images/logo/paraglow-logo-full-web.webp"
                 alt="ParaGlow"
@@ -171,10 +173,10 @@ export default async function Footer({ locale = 'fr' }: { locale?: string }) {
             </h3>
             <ul className="flex flex-col gap-2.5 mt-4">
               {[
-                { name: tNav('home'), href: `/${locale}` },
-                { name: tNav('catalogue'), href: `/${locale}/catalogue` },
-                { name: tNav('about'), href: `/${locale}/notre-histoire` },
-                { name: tNav('contact'), href: `/${locale}/contact` },
+                { name: tNav('home'), href: localizedPath(locale, '/') },
+                { name: tNav('catalogue'), href: localizedPath(locale, '/catalogue') },
+                { name: tNav('about'), href: localizedPath(locale, '/notre-histoire') },
+                { name: tNav('contact'), href: localizedPath(locale, '/contact') },
               ].map((link, idx) => (
                 <li key={idx}>
                   <Link 
@@ -205,7 +207,7 @@ export default async function Footer({ locale = 'fr' }: { locale?: string }) {
                 return (
                   <li key={idx}>
                     <Link 
-                      href={`/${locale}/catalogue?category=${cat.slug}`}
+                      href={`${localizedPath(locale, '/catalogue')}?category=${cat.slug}`}
                       className="text-xs sm:text-sm text-[#153f2b]/80 hover:text-[#c9a052] flex items-center gap-2 transition-colors font-sans group"
                     >
                       <Leaf className="w-3.5 h-3.5 text-[#c9a052] flex-shrink-0" strokeWidth={2.5} />

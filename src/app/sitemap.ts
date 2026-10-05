@@ -1,6 +1,7 @@
 import { MetadataRoute } from 'next'
 import prisma from '@/lib/prisma'
 import { routing } from '@/i18n/routing'
+import { localizedPath } from '@/lib/localizedPath'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://paraglow.tn'
@@ -24,8 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   for (const locale of locales) {
     for (const path of staticPaths) {
-      // Home page fallback without trailing slash for the locale prefix
-      const urlPath = path === '' ? `/${locale}` : `/${locale}${path}`
+      const urlPath = localizedPath(locale, path || '/')
       sitemapEntries.push({
         url: `${baseUrl}${urlPath}`,
         lastModified: new Date(),
@@ -37,7 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Add product paths
     for (const prod of products) {
       sitemapEntries.push({
-        url: `${baseUrl}/${locale}/catalogue/${prod.slug}`,
+        url: `${baseUrl}${localizedPath(locale, `/catalogue/${prod.slug}`)}`,
         lastModified: prod.updatedAt,
         changeFrequency: 'weekly',
         priority: 0.6,

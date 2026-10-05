@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { fallbackSettings } from '@/store/settings'
 
 export const revalidate = 300
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const rawSettings = await prisma.setting.findMany()
     const dbSettingsMap: Record<string, string> = {}
@@ -26,12 +26,20 @@ export async function GET(request: NextRequest) {
     if (dbSettingsMap.livraison) {
       try {
         const parsed = JSON.parse(dbSettingsMap.livraison)
-        livraison = { 
-          ...livraison, 
+        const parsedDeliveryFee = Number(parsed.defaultDeliveryFee)
+        const parsedThreshold = Number(parsed.freeDeliveryThreshold)
+        livraison = {
+          ...livraison,
           ...parsed,
-          defaultDeliveryFee: parseFloat(String(parsed.defaultDeliveryFee)),
-          freeDeliveryThreshold: parseFloat(String(parsed.freeDeliveryThreshold)),
-          livraisonGratuiteActive: parsed.livraisonGratuiteActive !== undefined ? !!parsed.livraisonGratuiteActive : false
+          defaultDeliveryFee: Number.isFinite(parsedDeliveryFee) && parsedDeliveryFee >= 0
+            ? parsedDeliveryFee
+            : livraison.defaultDeliveryFee,
+          freeDeliveryThreshold: Number.isFinite(parsedThreshold) && parsedThreshold >= 0
+            ? parsedThreshold
+            : livraison.freeDeliveryThreshold,
+          livraisonGratuiteActive: parsed.livraisonGratuiteActive !== undefined
+            ? !!parsed.livraisonGratuiteActive
+            : livraison.livraisonGratuiteActive
         }
       } catch {}
     }

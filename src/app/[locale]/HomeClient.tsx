@@ -12,11 +12,13 @@ import { computeDisplayPrice } from '@/lib/productPricing'
 import HeroSection from '@/components/home/HeroSection'
 import SelectionSection from '@/components/home/SelectionSection'
 import CategoryGrid from '@/components/home/CategoryGrid'
+import PremiumExperience from '@/components/home/PremiumExperience'
+import type { Category, Product } from '@/components/catalogue/types'
 
 interface HomeClientProps {
   locale: string
-  categories: any[]
-  featuredProducts: any[]
+  categories: Category[]
+  featuredProducts: Product[]
   siteMedia?: Record<string, { type: string; url: string; alt: string | null; width: number | null; height: number | null } | null>
 }
 
@@ -32,11 +34,11 @@ export default function HomeClient({ locale, featuredProducts = [], siteMedia }:
     [wishlistItems]
   )
 
-  const getProductImage = (product: any) => {
+  const getProductImage = (product: Product) => {
     return resolveProductImage(product.images) || '/images/paraglow-favicon-512.png'
   }
 
-  const handleAddToCart = (product: any) => {
+  const handleAddToCart = (product: Product) => {
     const displayPrice = computeDisplayPrice(product)
     addItemToCart({
       id: product.id,
@@ -50,7 +52,7 @@ export default function HomeClient({ locale, featuredProducts = [], siteMedia }:
     toast.success(`${product.name} ${t('cart.addedSuccess') || 'ajouté au panier !'}`)
   }
 
-  const handleToggleWishlist = (product: any) => {
+  const handleToggleWishlist = (product: Product) => {
     const isWishlisted = isInWishlist(product.id)
     const displayPrice = computeDisplayPrice(product)
     toggleWishlist({
@@ -71,7 +73,7 @@ export default function HomeClient({ locale, featuredProducts = [], siteMedia }:
 
   return (
     <>
-      <HeroSection siteMedia={siteMedia} />
+      <HeroSection locale={locale} siteMedia={siteMedia} />
 
       <SelectionSection
         locale={locale}
@@ -80,6 +82,8 @@ export default function HomeClient({ locale, featuredProducts = [], siteMedia }:
         handleAddToCart={handleAddToCart}
         handleToggleWishlist={handleToggleWishlist}
       />
+
+      <PremiumExperience locale={locale} />
 
       <CategoryGrid locale={locale} siteMedia={siteMedia} />
     </>

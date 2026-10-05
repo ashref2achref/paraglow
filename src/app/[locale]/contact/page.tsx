@@ -1,4 +1,28 @@
+import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
+import { buildLocalizedMetadata, normalizeSeoLocale } from '@/lib/seo'
+
+const CONTACT_SEO = {
+  fr: {
+    title: 'Contact ParaGlow — Aide & service client',
+    description: 'Contactez ParaGlow pour vos questions produits, commandes, livraison et service client en Tunisie.',
+  },
+  en: {
+    title: 'Contact ParaGlow — Help & customer service',
+    description: 'Contact ParaGlow for product, order, delivery and customer-service questions in Tunisia.',
+  },
+  ar: {
+    title: 'اتصلوا بـ ParaGlow — المساعدة وخدمة الحرفاء',
+    description: 'تواصلوا مع ParaGlow بخصوص المنتجات والطلبات والتوصيل وخدمة الحرفاء في تونس.',
+  },
+} as const
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: requestedLocale } = await params
+  const locale = normalizeSeoLocale(requestedLocale) as keyof typeof CONTACT_SEO
+  return buildLocalizedMetadata({ locale, path: '/contact', ...CONTACT_SEO[locale] })
+}
+
 import { cn } from '@/lib/utils'
 import Container from '@/components/ui/Container'
 import ScrollReveal from '@/components/ui/ScrollReveal'
@@ -27,7 +51,7 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
   const isRTL = locale === 'ar'
 
   // Load boutique settings from DB
-  let boutique = {
+  const boutique = {
     email: contactConfig.email,
     phones: contactConfig.phones,
     address: contactConfig.address,

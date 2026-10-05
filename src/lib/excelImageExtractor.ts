@@ -15,10 +15,11 @@ import ExcelJS from 'exceljs'
  */
 export async function extractEmbeddedImagesByRow(buffer: Buffer, sheetName: string): Promise<Map<number, Buffer>> {
   const workbook = new ExcelJS.Workbook()
-  // Technical constraint: ExcelJS typings expect a legacy global Node.js Buffer,
-  // whereas modern Node environments resolve this parameter to Buffer<ArrayBufferLike>.
-  // Casting to 'any' is required to bridge this typescript definition mismatch.
-  await workbook.xlsx.load(buffer as any)
+  const workbookBuffer = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  ) as ArrayBuffer
+  await workbook.xlsx.load(workbookBuffer)
   const worksheet = workbook.getWorksheet(sheetName)
   const result = new Map<number, Buffer>()
   if (!worksheet) return result
@@ -40,10 +41,11 @@ export async function extractEmbeddedImagesByRow(buffer: Buffer, sheetName: stri
 export async function hasEmbeddedImages(buffer: Buffer, sheetName: string): Promise<boolean> {
   try {
     const workbook = new ExcelJS.Workbook()
-    // Technical constraint: ExcelJS typings expect a legacy global Node.js Buffer,
-    // whereas modern Node environments resolve this parameter to Buffer<ArrayBufferLike>.
-    // Casting to 'any' is required to bridge this typescript definition mismatch.
-    await workbook.xlsx.load(buffer as any)
+    const workbookBuffer = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    ) as ArrayBuffer
+    await workbook.xlsx.load(workbookBuffer)
     const worksheet = workbook.getWorksheet(sheetName)
     if (!worksheet) return false
     return worksheet.getImages().length > 0

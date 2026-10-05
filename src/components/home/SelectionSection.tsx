@@ -6,13 +6,14 @@ import { useTranslations } from 'next-intl'
 import Container from '@/components/ui/Container'
 import ProductCard from '@/components/catalogue/ProductCard'
 import { cn } from '@/lib/utils'
+import type { Product } from '@/components/catalogue/types'
 
 interface SelectionSectionProps {
   locale: string
-  featuredProducts: any[]
+  featuredProducts: Product[]
   isInWishlist: (productId: string) => boolean
-  handleAddToCart: (product: any) => void
-  handleToggleWishlist: (product: any) => void
+  handleAddToCart: (product: Product) => void
+  handleToggleWishlist: (product: Product) => void
 }
 
 export default function SelectionSection({
@@ -39,14 +40,14 @@ export default function SelectionSection({
     if (carouselRef.current) {
       const cardWidth = 324
       const scrollAmount = direction === 'left' ? -cardWidth : cardWidth
-      carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
+      carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'auto' })
     }
   }
 
   const handleDotClick = (index: number) => {
     if (carouselRef.current) {
       const cardWidth = 324
-      carouselRef.current.scrollTo({ left: index * cardWidth, behavior: 'smooth' })
+      carouselRef.current.scrollTo({ left: index * cardWidth, behavior: 'auto' })
       setActiveDot(index)
     }
   }
@@ -137,21 +138,16 @@ export default function SelectionSection({
                     onScroll={handleScroll}
                     className="flex gap-6 overflow-x-auto pb-6 scrollbar-none snap-x snap-mandatory w-full"
                   >
-                    {featuredProducts.map((product, idx) => {
+                    {featuredProducts.map((product) => {
                       const isWishlisted = isInWishlist(product.id)
 
                       return (
                         <div
                           key={product.id}
-                          style={{
-                            animationDelay: `${idx * 0.08}s`,
-                            animationFillMode: 'forwards',
-                          }}
-                          className="animate-fade-in-up w-[240px] sm:w-[260px] lg:w-[230px] xl:w-[240px] flex-shrink-0 snap-start"
+                          className="w-[240px] sm:w-[260px] lg:w-[230px] xl:w-[240px] flex-shrink-0 snap-start"
                         >
                           <ProductCard
                             product={product}
-                            index={idx}
                             locale={locale}
                             isInWishlist={isWishlisted}
                             onAddToCart={() => handleAddToCart(product)}
@@ -184,7 +180,7 @@ export default function SelectionSection({
                         type="button"
                         onClick={() => handleDotClick(dIdx)}
                         className={cn(
-                          "w-2 h-2 rounded-full transition-all duration-300 cursor-pointer",
+                          "w-2 h-2 rounded-full transition-[width,background-color] duration-150 cursor-pointer",
                           activeDot === dIdx ? "bg-[#c9a052] w-5" : "bg-[#c9a052]/30"
                         )}
                         aria-label={`${tCommon('previous')} ${dIdx + 1}`}

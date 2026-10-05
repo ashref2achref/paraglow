@@ -19,47 +19,32 @@ async function getIntlMiddleware() {
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // 1. Run Supabase Session update/refresh
-  const { supabaseResponse, user } = await updateSession(request)
-
-  // 2. Protect /admin routes
+  // Only admin UI routes need Supabase session verification here.
+  // Admin API routes verify themselves with checkAdminAuth(), while the public
+  // storefront has no authenticated data dependency. Avoiding a remote auth
+  // request for every public/API request removes a major navigation bottleneck.
   if (pathname.startsWith('/admin')) {
-    const role = user?.user_metadata?.role || user?.app_metadata?.role
-    const isAuthenticated = !!user && role === 'ADMIN'
+    const { supabaseResponse, claims } = await updateSession(request)
+    const role = claims?.app_metadata?.role
+    const isAuthenticated = Boolean(claims?.sub) && role === 'ADMIN'
 
     if (!isAuthenticated && pathname !== '/admin/login') {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
+
     if (isAuthenticated && pathname === '/admin/login') {
       return NextResponse.redirect(new URL('/admin/dashboard', request.url))
     }
-    return supabaseResponse
-  }
 
-  if (pathname.startsWith('/api')) {
     return supabaseResponse
   }
 
   const intlMiddleware = await getIntlMiddleware()
-  const response = intlMiddleware(request)
-  
-  // Copy cookies from supabaseResponse to the intl response
-  supabaseResponse.cookies.getAll().forEach((cookie) => {
-    response.cookies.set(cookie.name, cookie.value, {
-      path: cookie.path,
-      domain: cookie.domain,
-      maxAge: cookie.maxAge,
-      secure: cookie.secure,
-      sameSite: cookie.sameSite,
-      httpOnly: cookie.httpOnly,
-    })
-  })
-
-  return response
+  return intlMiddleware(request)
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next|_vercel|.*\\..*).*)'
-  ]
+  // API routes are intentionally excluded. They already perform their own
+  // authorization and should not pay for a second auth verification in Proxy.
+  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
 }

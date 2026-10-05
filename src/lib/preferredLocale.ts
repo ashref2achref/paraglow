@@ -3,24 +3,10 @@ import { routing } from '@/i18n/routing'
 
 type SupportedLocale = (typeof routing.locales)[number]
 
-// Verified empirically (Chantier 9): Next.js 16's Proxy (the renamed Middleware)
-// defaults to the Node.js runtime, so a direct Prisma/better-sqlite3 query from
-// proxy.ts works in both `next dev` and `next start`.
-//
-// Propagation model — important architectural note:
-// Next.js bundles the Proxy (proxy.ts) SEPARATELY from the server/API bundle, so
-// this module is instantiated TWICE at runtime with independent module state: once
-// inside the proxy bundle, once inside the server bundle. That means an in-memory
-// "invalidate this cache" signal fired from an API route (server bundle) can NEVER
-// reach the proxy bundle's copy — cross-bundle in-memory invalidation is impossible
-// by construction. The single source of truth both bundles DO share is the SQLite
-// row itself. So we use a short TTL: each bundle re-reads the row at most once per
-// TTL window. The admin's "default language" is set once and changed very rarely,
-// so a bounded staleness of a few seconds on that rare change is perfectly
-// acceptable, and the read is a synchronous single-row PK lookup (microseconds).
-// This matches the task's accepted "revalidation toutes les X" option; true
-// immediate cross-bundle invalidation is not achievable in this architecture.
-const CACHE_TTL_MS = 15_000
+// The Proxy and server/API bundles have independent module state. A short TTL
+// keeps the preferred-locale lookup inexpensive while still reflecting admin changes
+// quickly. PostgreSQL remains the shared source of truth across all server instances.
+const CACHE_TTL_MS = 60_000
 
 let cachedLocale: SupportedLocale | null = null
 let cachedAt = 0
@@ -54,4 +40,9 @@ export async function getPreferredLocale(): Promise<SupportedLocale> {
 
   cachedAt = now
   return cachedLocale
+}
+
+export function invalidatePreferredLocaleCache() {
+  cachedLocale = null
+  cachedAt = 0
 }

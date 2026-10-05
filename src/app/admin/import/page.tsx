@@ -21,17 +21,50 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import {
+  CLIENT_IMPORT_CHUNK_SIZE,
+  CLIENT_IMPORT_IMAGE_CHUNK_SIZE,
+  MAX_CLIENT_IMPORT_FILE_MB,
+  MAX_CLIENT_IMPORT_ROWS,
+  parseImportFile,
+  type ParsedImportFile,
+} from '@/lib/importClient'
+
+type PreviewRow = Record<string, unknown>
+
+interface ImportBatchSummary {
+  id: string
+  filename: string
+  createdAt: string
+  productsCreatedCount: number
+  productsUpdatedCount: number
+}
+
+interface ImportLog {
+  id: string
+  action: string
+  details: string
+  changes?: string | null
+  createdAt: string
+}
+
+type ChangeDelta = {
+  before?: unknown
+  after?: unknown
+}
 
 export default function ImportPage() {
   const router = useRouter()
   const [step, setStep] = useState(1) // 1: Upload, 2: Mapping, 3: Validation, 4: Progress/Process, 5: Report
   const [file, setFile] = useState<File | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+  const parsedRowsRef = useRef<PreviewRow[]>([])
   
   // Preview data from server
   const [sheets, setSheets] = useState<string[]>([])
   const [selectedSheet, setSelectedSheet] = useState('')
   const [headers, setHeaders] = useState<string[]>([])
-  const [previewRows, setPreviewRows] = useState<any[]>([])
+  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([])
   const [totalRowsCount, setTotalRowsCount] = useState(0)
 
   // Drag & drop state
@@ -67,6 +100,7 @@ export default function ImportPage() {
 
   // Import stats
   const [loading, setLoading] = useState(false)
+  const [analysisStage, setAnalysisStage] = useState('')
   const [stats, setStats] = useState({
     created: 0,
     updated: 0,
@@ -75,18 +109,17 @@ export default function ImportPage() {
   })
 
   // Real progress tracking (polling the ImportBatch created by the async run)
-  const [processingBatchId, setProcessingBatchId] = useState<string | null>(null)
+  const [, setProcessingBatchId] = useState<string | null>(null)
   const [processingStatus, setProcessingStatus] = useState<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null)
   const [processedRows, setProcessedRows] = useState(0)
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Mirrors src/lib/importProcessor.ts IMPORT_ROW_WARNING_THRESHOLD — shown to the
-  // admin before launch so a very large file isn't a surprise.
-  const ROW_WARNING_THRESHOLD = 20000
+  // Large catalogues are parsed in the browser and streamed to the API in small chunks.
+  const ROW_WARNING_THRESHOLD = 10_000
 
   // Batch imports undo state
-  const [batches, setBatches] = useState<any[]>([])
-  const [selectedBatch, setSelectedBatch] = useState<any>(null)
+  const [batches, setBatches] = useState<ImportBatchSummary[]>([])
+  const [selectedBatch, setSelectedBatch] = useState<ImportBatchSummary | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteMode, setDeleteMode] = useState<'trash' | 'permanent'>('trash')
   const [deletingBatch, setDeletingBatch] = useState(false)
@@ -109,7 +142,7 @@ export default function ImportPage() {
     defaultStatus: 'inactive',
     preferredFileFormat: 'xlsx',
   })
-  const [logs, setLogs] = useState<any[]>([])
+  const [logs, setLogs] = useState<ImportLog[]>([])
   const [logPage, setLogPage] = useState(1)
   const [logTotalPages, setLogTotalPages] = useState(1)
 
@@ -174,8 +207,11 @@ export default function ImportPage() {
   }
 
   useEffect(() => {
-    loadSettings()
-    loadTrashCount()
+    const timer = window.setTimeout(() => {
+      void loadSettings()
+      loadTrashCount()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   const loadBatches = async () => {
@@ -189,9 +225,9 @@ export default function ImportPage() {
   }
 
   useEffect(() => {
-    if (step === 1) {
-      loadBatches()
-    }
+    if (step !== 1) return
+    const timer = window.setTimeout(() => void loadBatches(), 0)
+    return () => window.clearTimeout(timer)
   }, [step])
 
   const schemaFields = [
@@ -211,6 +247,75 @@ export default function ImportPage() {
     { key: 'archive', label: 'Archiver / Statut', required: false, desc: 'Si remplie, produit inactif' },
     { key: 'imageUrl', label: 'URL Image', required: false, desc: 'Lien direct http(s) vers une image du produit' },
   ]
+
+  const buildAutoMapping = (fileHeaders: string[], rows: PreviewRow[]) => {
+    const autoMapping: Record<string, string> = {
+      code: '',
+      barcode: '',
+      name: '',
+      description: '',
+      stock: '',
+      category: '',
+      brand: '',
+      purchasePriceHT: '',
+      margin: '',
+      tva: '',
+      sellingPriceTTC: '',
+      publicPrice: '',
+      discount: '',
+      archive: '',
+      imageUrl: '',
+    }
+
+    const lowerHeaders = fileHeaders.map((header) => header.toLowerCase().trim())
+    const autoMapRules: Record<string, string[]> = {
+      code: ['code', 'ref', 'reference'],
+      barcode: ['code a bar', 'code à bar', 'ean', 'barcode', 'codebarre'],
+      name: ['designation', 'désignation', 'nom', 'name', 'article', 'description commerciale'],
+      description: ['description', 'detail', 'details', 'info'],
+      stock: ['stock', 'quantite', 'qté', 'qte', 'dispo'],
+      category: ['famille', 'catégorie', 'categorie', 'category', 'groupe'],
+      brand: ['marque', 'brand', 'fabricant'],
+      purchasePriceHT: ['prix achat ht', 'achat ht', 'prix achat', 'p.achat', 'paht'],
+      margin: ['mb%', 'marge', 'margin', 'markup'],
+      tva: ['tva', 'taxe'],
+      sellingPriceTTC: ['pventettc', 'prix vente ttc', 'prix vente', 'vente ttc', 'ttc', 'pvttc'],
+      publicPrice: ['pvente pub ht', 'prix vente pub ht', 'prix public', 'public ht'],
+      discount: ['d. remise', 'remise', 'discount', 'reduction'],
+      archive: ['archiver', 'archive', 'actif', 'status', 'statut'],
+      imageUrl: ['url image', 'image url', 'lien image', 'photo url', 'image'],
+    }
+
+    Object.entries(autoMapRules).forEach(([field, keywords]) => {
+      const index = lowerHeaders.findIndex((header) =>
+        keywords.some((keyword) => header === keyword || header.startsWith(keyword) || header.endsWith(keyword))
+      )
+      if (index === -1) return
+
+      const matchedHeader = fileHeaders[index]
+      if (field === 'imageUrl') {
+        const hasUsableUrl = rows.slice(0, 200).some((row) =>
+          /^https?:\/\//i.test(String(row[matchedHeader] || '').trim())
+        )
+        if (!hasUsableUrl) return
+      }
+
+      autoMapping[field] = matchedHeader
+    })
+
+    return autoMapping
+  }
+
+  const applyParsedImport = (parsed: ParsedImportFile, resetMapping = true) => {
+    parsedRowsRef.current = parsed.rows
+    setSheets(parsed.sheets)
+    setSelectedSheet(parsed.sheetName)
+    setHeaders(parsed.headers)
+    setPreviewRows(parsed.rows.slice(0, 10))
+    setTotalRowsCount(parsed.rows.length)
+    setEmbeddedImagesDetected(parsed.embeddedImagesDetected)
+    if (resetMapping) setMapping(buildAutoMapping(parsed.headers, parsed.rows))
+  }
 
   // Drag & drop handlers
   const handleDrag = (e: React.DragEvent) => {
@@ -239,107 +344,172 @@ export default function ImportPage() {
     }
   }
 
+  const parseForWizard = async (selectedFile: File, sheetName = ''): Promise<ParsedImportFile> => {
+    const SERVER_PREVIEW_MAX_BYTES = 1024 * 1024
+
+    const parseLocallyWithTimeout = async () => {
+      setAnalysisStage('Analyse locale du fichier…')
+      let timer: number | null = null
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timer = window.setTimeout(
+            () => reject(new Error('L’analyse locale a dépassé 15 secondes. Le fichier semble incompatible ou trop complexe.')),
+            15_000
+          )
+        })
+        return await Promise.race([parseImportFile(selectedFile, sheetName), timeoutPromise])
+      } finally {
+        if (timer !== null) window.clearTimeout(timer)
+      }
+    }
+
+    if (selectedFile.size <= SERVER_PREVIEW_MAX_BYTES) {
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 8_000)
+
+      try {
+        setAnalysisStage('Lecture sécurisée du fichier…')
+        const formData = new FormData()
+        formData.append('file', selectedFile)
+        if (sheetName) formData.append('selectedSheet', sheetName)
+
+        const response = await fetch('/api/admin/import/preview', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal,
+          cache: 'no-store',
+        })
+
+        const data = await response.json() as {
+          error?: string
+          sheets?: string[]
+          sheetName?: string
+          headers?: string[]
+          rows?: PreviewRow[]
+          totalRows?: number
+          embeddedImagesDetected?: boolean
+        }
+
+        if (response.status === 413) {
+          return await parseLocallyWithTimeout()
+        }
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Impossible d’analyser le fichier')
+        }
+
+        if (!Array.isArray(data.rows) || data.rows.length === 0) {
+          throw new Error('Le serveur n’a retourné aucune ligne exploitable')
+        }
+
+        const resolvedSheet =
+          data.sheetName ||
+          sheetName ||
+          data.sheets?.find((name) => name.toLowerCase() === 'articles') ||
+          data.sheets?.[0] ||
+          'Articles'
+
+        return {
+          sheets: data.sheets || [resolvedSheet],
+          sheetName: resolvedSheet,
+          headers: data.headers || [],
+          rows: data.rows,
+          embeddedImagesDetected: Boolean(data.embeddedImagesDetected),
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          console.warn('[Import preview] dedicated preview timed out; using local parser')
+          return await parseLocallyWithTimeout()
+        }
+        if (error instanceof TypeError) {
+          console.warn('[Import preview] network preview unavailable; using local parser', error)
+          return await parseLocallyWithTimeout()
+        }
+        throw error
+      } finally {
+        window.clearTimeout(timeout)
+      }
+    }
+
+    return await parseLocallyWithTimeout()
+  }
+
   const handleFileSelected = async (selectedFile: File) => {
     const name = selectedFile.name.toLowerCase()
-    if (!name.endsWith('.xlsx') && !name.endsWith('.xls') && !name.endsWith('.csv')) {
-      toast.error('Format non supporté (utilisez .xlsx, .xls ou .csv)')
+    setFileError(null)
+
+    if (!name.endsWith('.xlsx') && !name.endsWith('.csv')) {
+      const message = 'Format non supporté (utilisez .xlsx ou .csv)'
+      setFileError(message)
+      toast.error(message)
       return
     }
 
-    const MAX_SIZE_MB = 20
-    if (selectedFile.size > MAX_SIZE_MB * 1024 * 1024) {
-      toast.error(`Le fichier est trop volumineux. La taille maximale autorisée est de ${MAX_SIZE_MB} Mo.`)
+    if (selectedFile.size > MAX_CLIENT_IMPORT_FILE_MB * 1024 * 1024) {
+      const message = `Le fichier dépasse ${MAX_CLIENT_IMPORT_FILE_MB} Mo. Pour protéger la mémoire du navigateur, scindez uniquement les fichiers au-delà de cette taille.`
+      setFileError(message)
+      toast.error(message)
       return
     }
 
     setFile(selectedFile)
     setLoading(true)
+    setAnalysisStage('Préparation du fichier…')
 
-    // Upload for preview
     try {
-      const body = new FormData()
-      body.append('file', selectedFile)
-      body.append('previewOnly', 'true')
+      const parsed = await parseForWizard(selectedFile)
 
-      const res = await fetch('/api/admin/import', { method: 'POST', body })
-      const data = await res.json()
-
-      if (res.ok && data.headers) {
-        setSheets(data.sheets || [])
-        setSelectedSheet(data.sheets?.[0] || '')
-        setHeaders(data.headers)
-        setPreviewRows(data.previewRows || [])
-        setTotalRowsCount(data.totalRows || 0)
-        setEmbeddedImagesDetected(!!data.embeddedImagesDetected)
-
-        // Auto map headers based on common names
-        const autoMapping = { ...mapping }
-        const lowerHeaders = data.headers.map((h: string) => h.toLowerCase().trim())
-        
-        const autoMapRules: Record<string, string[]> = {
-          code: ['code', 'ref', 'reference'],
-          barcode: ['code a bar', 'code à bar', 'ean', 'barcode', 'codebarre'],
-          name: ['designation', 'désignation', 'nom', 'name', 'article', 'description commerciale'],
-          description: ['description', 'detail', 'details', 'info'],
-          stock: ['stock', 'quantite', 'qté', 'qte', 'dispo'],
-          category: ['famille', 'catégorie', 'categorie', 'category', 'groupe'],
-          brand: ['marque', 'brand', 'fabricant'],
-          purchasePriceHT: ['prix achat ht', 'achat ht', 'prix achat', 'p.achat', 'paht'],
-          margin: ['mb%', 'marge', 'margin', 'markup'],
-          tva: ['tva', 'taxe'],
-          sellingPriceTTC: ['pventettc', 'prix vente ttc', 'prix vente', 'vente ttc', 'ttc', 'pvttc'],
-          publicPrice: ['pvente pub ht', 'prix vente pub ht', 'prix public', 'public ht'],
-          discount: ['d. remise', 'remise', 'discount', 'reduction'],
-          archive: ['archiver', 'archive', 'actif', 'status', 'statut'],
-          imageUrl: ['url image', 'image url', 'lien image', 'photo url', 'image'],
-        }
-
-        Object.entries(autoMapRules).forEach(([field, keywords]) => {
-          const index = lowerHeaders.findIndex((lh: string) => 
-            keywords.some((k) => lh === k || lh.startsWith(k) || lh.endsWith(k))
-          )
-          if (index !== -1) {
-            autoMapping[field] = data.headers[index]
-          }
-        })
-
-        setMapping(autoMapping)
-        setStep(2)
-      } else {
-        toast.error(data.error || 'Erreur lors du chargement de l\'aperçu')
-        setFile(null)
+      if (parsed.rows.length === 0) {
+        throw new Error('Le fichier ne contient aucune ligne de données')
       }
-    } catch {
-      toast.error('Erreur lors du traitement du fichier')
+
+      if (parsed.rows.length > MAX_CLIENT_IMPORT_ROWS) {
+        throw new Error(
+          `Ce fichier contient ${parsed.rows.length.toLocaleString('fr-FR')} lignes. La limite de sécurité est ${MAX_CLIENT_IMPORT_ROWS.toLocaleString('fr-FR')} lignes par fichier.`
+        )
+      }
+
+      setAnalysisStage('Préparation du mapping…')
+      applyParsedImport(parsed, true)
+      setStep(2)
+      toast.success(
+        `${parsed.rows.length.toLocaleString('fr-FR')} lignes détectées — prêt pour le mapping.`
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors du traitement du fichier'
+      setFileError(message)
+      toast.error(message)
       setFile(null)
+      parsedRowsRef.current = []
     } finally {
       setLoading(false)
+      setAnalysisStage('')
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
-  // Load preview data from different sheet if changed
+  // Reparse only the selected worksheet in the browser; the workbook is never sent whole to the API.
   const handleSheetChange = async (sheetName: string) => {
+    if (!file) return
     setSelectedSheet(sheetName)
     setLoading(true)
+    setAnalysisStage('Lecture de la feuille…')
+    setFileError(null)
     try {
-      const body = new FormData()
-      body.append('file', file!)
-      body.append('previewOnly', 'true')
-      body.append('selectedSheet', sheetName)
-
-      const res = await fetch('/api/admin/import', { method: 'POST', body })
-      const data = await res.json()
-
-      if (res.ok && data.headers) {
-        setHeaders(data.headers)
-        setPreviewRows(data.previewRows || [])
-        setTotalRowsCount(data.totalRows || 0)
-        setEmbeddedImagesDetected(!!data.embeddedImagesDetected)
+      const parsed = await parseForWizard(file, sheetName)
+      if (parsed.rows.length > MAX_CLIENT_IMPORT_ROWS) {
+        throw new Error(
+          `Cette feuille contient ${parsed.rows.length.toLocaleString('fr-FR')} lignes, au-delà de la limite de sécurité de ${MAX_CLIENT_IMPORT_ROWS.toLocaleString('fr-FR')}.`
+        )
       }
-    } catch {
-      toast.error('Erreur de changement de feuille')
+      applyParsedImport(parsed, true)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur de changement de feuille'
+      setFileError(message)
+      toast.error(message)
     } finally {
       setLoading(false)
+      setAnalysisStage('')
     }
   }
 
@@ -404,32 +574,92 @@ export default function ImportPage() {
   }
 
   const runImport = async () => {
+    const rows = parsedRowsRef.current
+    if (!file || rows.length === 0) {
+      toast.error('Aucune donnée prête à importer')
+      setStep(2)
+      return
+    }
+
     setStep(4)
     setLoading(true)
     setProcessingStatus('PENDING')
     setProcessedRows(0)
+
+    let batchId: string | null = null
+
     try {
-      const body = new FormData()
-      body.append('file', file!)
-      body.append('selectedSheet', selectedSheet)
-      body.append('mapping', JSON.stringify(mapping))
-      body.append('options', JSON.stringify(options))
+      const sessionResponse = await fetch('/api/admin/import/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          totalRows: rows.length,
+        }),
+      })
+      const sessionData = await sessionResponse.json()
 
-      const res = await fetch('/api/admin/import', { method: 'POST', body })
-      const data = await res.json()
+      if (!sessionResponse.ok || !sessionData.batchId) {
+        throw new Error(sessionData.error || 'Impossible de préparer la session d’importation')
+      }
 
-      if (res.ok && data.batchId) {
-        setProcessingBatchId(data.batchId)
-        pollBatchStatus(data.batchId)
-      } else {
-        toast.error(data.error || 'Erreur lors du lancement de l\'import')
+      const activeBatchId = String(sessionData.batchId)
+      batchId = activeBatchId
+      setProcessingBatchId(activeBatchId)
+      pollBatchStatus(activeBatchId)
+
+      const chunkSize = mapping.imageUrl ? CLIENT_IMPORT_IMAGE_CHUNK_SIZE : CLIENT_IMPORT_CHUNK_SIZE
+
+      for (let start = 0; start < rows.length; start += chunkSize) {
+        const chunkRows = rows.slice(start, start + chunkSize)
+        const isFirst = start === 0
+        const isLast = start + chunkRows.length >= rows.length
+
+        let response: Response | null = null
+        let data: { error?: string; batch?: { processedRows?: number } } = {}
+        let lastError = ''
+
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          try {
+            response = await fetch('/api/admin/import/chunk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                batchId: activeBatchId,
+                rows: chunkRows,
+                mapping,
+                options,
+                rowOffset: start,
+                isFirst,
+                isLast,
+              }),
+            })
+            data = await response.json()
+            if (response.ok) break
+            lastError = data.error || `Erreur HTTP ${response.status}`
+          } catch (error) {
+            lastError = error instanceof Error ? error.message : 'Erreur réseau'
+          }
+
+          if (attempt < 3) {
+            await new Promise((resolve) => window.setTimeout(resolve, 800 * attempt))
+          }
+        }
+
+        if (!response?.ok) {
+          throw new Error(lastError || `Échec du lot démarrant à la ligne ${start + 1}`)
+        }
+
+        setProcessingStatus(isLast ? 'COMPLETED' : 'PROCESSING')
+        setProcessedRows(data.batch?.processedRows || Math.min(rows.length, start + chunkRows.length))
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur de communication avec le serveur'
+      toast.error(message)
+      if (!batchId) {
         setLoading(false)
         setStep(3)
       }
-    } catch {
-      toast.error('Erreur de communication avec le serveur')
-      setLoading(false)
-      setStep(3)
     }
   }
 
@@ -456,7 +686,7 @@ export default function ImportPage() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold font-serif text-[#153f2b]">
-            Assistant d'importation
+            Assistant d&apos;importation
           </h1>
           <p className="text-sm text-[#6b5f4f]/80 mt-1">Importez et normalisez le catalogue de votre parapharmacie.</p>
         </div>
@@ -540,7 +770,8 @@ export default function ImportPage() {
           {loading ? (
             <div className="py-12 flex flex-col items-center gap-3">
               <Loader2 className="w-10 h-10 text-[#c9a052] animate-spin" />
-              <p className="text-xs font-semibold text-[#6b5f4f]">Analyse de la structure du fichier...</p>
+              <p className="text-xs font-semibold text-[#6b5f4f]">{analysisStage || 'Analyse de la structure du fichier…'}</p>
+              <p className="text-[10px] text-[#9b8f7a]">Cette étape est limitée dans le temps : en cas d’échec, un message précis sera affiché.</p>
             </div>
           ) : (
             <div
@@ -559,7 +790,7 @@ export default function ImportPage() {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept=".xlsx,.xls,.csv"
+                accept=".xlsx,.csv"
                 className="hidden"
               />
               <UploadCloud className="w-16 h-16 text-[#c9a052] mb-4" />
@@ -567,11 +798,21 @@ export default function ImportPage() {
                 Importez votre catalogue produits
               </h3>
               <p className="text-xs text-[#6b5f4f]/80 max-w-sm mb-4 leading-normal">
-                Glissez-déposez votre fichier Excel (<strong>.xlsx</strong>, <strong>.xls</strong>) ou <strong>.csv</strong> ici, ou cliquez pour parcourir votre ordinateur.
+                Glissez-déposez votre fichier Excel (<strong>.xlsx</strong>) ou <strong>.csv</strong> ici, ou cliquez pour parcourir votre ordinateur.
+                <span className="block mt-1 text-[10px] text-[#9b8f7a]">
+                  Jusqu’à {MAX_CLIENT_IMPORT_FILE_MB} Mo et {MAX_CLIENT_IMPORT_ROWS.toLocaleString('fr-FR')} lignes — traitement automatique par lots.
+                </span>
               </p>
               <span className="px-4 py-2 bg-[#1b3a1e] hover:bg-[#c9a052] text-white rounded-lg text-xs font-semibold shadow-sm transition-all">
                 Sélectionner un fichier
               </span>
+            </div>
+          )}
+
+          {fileError && !loading && (
+            <div className="w-full mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>{fileError}</span>
             </div>
           )}
 
@@ -614,7 +855,7 @@ export default function ImportPage() {
                             }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg font-bold transition-all cursor-pointer border-none"
                           >
-                            <Trash2 className="w-3.5 h-3.5" /> Annuler l'import
+                            <Trash2 className="w-3.5 h-3.5" /> Annuler l&apos;import
                           </button>
                         </td>
                       </tr>
@@ -713,8 +954,30 @@ export default function ImportPage() {
           {/* First 10 rows Preview */}
           <div className="bg-white border border-[#eadfca] rounded-2xl p-5 shadow-[0_2px_12px_rgba(21,63,43,0.02)] space-y-4">
             <h3 className="font-serif text-base font-bold text-[#153f2b] border-b border-[#ede8de] pb-1">Aperçu des données (10 premières lignes)</h3>
+
+            <div className="sm:hidden space-y-3">
+              {previewRows.map((row, idx) => (
+                <div key={idx} className="rounded-xl border border-[#eadfca] bg-[#faf8f5] p-3">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#c9a052]">Ligne {idx + 1}</span>
+                    <span className="text-[10px] text-[#9b8f7a]">{headers.length} colonnes</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {headers.slice(0, 6).map((header) => (
+                      <div key={header} className="grid grid-cols-[110px_1fr] gap-2 text-[10px]">
+                        <span className="font-semibold text-[#6b5f4f] truncate">{header}</span>
+                        <span className="text-[#153f2b] truncate" title={String(row[header] ?? '')}>{String(row[header] ?? '') || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {headers.length > 6 && (
+                    <p className="text-[9px] text-[#9b8f7a] mt-2">+ {headers.length - 6} autres colonnes disponibles dans le mapping</p>
+                  )}
+                </div>
+              ))}
+            </div>
             
-            <div className="overflow-x-auto">
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-left border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-[#FBF6EC] border-b border-[#eadfca] font-semibold text-[#6b5f4f]">
@@ -743,22 +1006,22 @@ export default function ImportPage() {
         <div className="bg-white border border-[#eadfca] rounded-2xl p-6 shadow-[0_4px_24px_rgba(21,63,43,0.02)] space-y-6">
           <div>
             <h2 className="font-serif text-xl font-bold text-[#153f2b] border-b border-[#ede8de] pb-2">Vérifications avant Import</h2>
-            <p className="text-xs text-[#6b5f4f]/80 mt-1">Configurez les comportements d'importation et lancez l'écriture de données.</p>
+            <p className="text-xs text-[#6b5f4f]/80 mt-1">Configurez les comportements d&apos;importation et lancez l&apos;écriture de données.nées.</p>
           </div>
 
           {/* Summary Box */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-4 border border-[#c9a052]/30 rounded-xl bg-[#FBF6EC]/40 space-y-2 text-xs">
-              <h3 className="font-serif font-bold text-[#153f2b] flex items-center gap-1"><CheckCircle2 className="w-4 h-4 text-[#6b7d53]" /> Résumé de l'opération</h3>
+              <h3 className="font-serif font-bold text-[#153f2b] flex items-center gap-1"><CheckCircle2 className="w-4 h-4 text-[#6b7d53]" /> Résumé de l&apos;opération</h3>
               <p><span className="font-semibold">Fichier source :</span> {file?.name}</p>
               <p><span className="font-semibold">Lignes à traiter :</span> {totalRowsCount} lignes</p>
-              <p><span className="font-semibold">Destination :</span> SQLite Database (dev.db)</p>
+              <p><span className="font-semibold">Destination :</span> Base PostgreSQL</p>
               <p>
                 <span className="font-semibold">Images produits :</span>{' '}
                 {mapping.imageUrl
                   ? `téléchargées depuis la colonne "${mapping.imageUrl}"`
                   : embeddedImagesDetected
-                  ? 'images natives détectées dans le fichier (extraites et associées par position)'
+                  ? 'images intégrées détectées : les données seront importées par lots ; utilisez une colonne URL Image pour les transférer automatiquement dans ce mode'
                   : 'aucune (placeholder par défaut)'}
               </p>
             </div>
@@ -798,7 +1061,7 @@ export default function ImportPage() {
             <div>
               <p className="font-bold">Attention</p>
               <p className="text-[11px] text-rose-700 mt-0.5">
-                Cette importation va modifier directement la base de données. Les catégories et marques manquantes seront créées automatiquement à la volée. Assurez-vous d'avoir sauvegardé ou validé les colonnes de mapping.
+                Cette importation va modifier directement la base de données. Les catégories et marques manquantes seront créées automatiquement à la volée. Assurez-vous d&apos;avoir sauvegardé ou validé les colonnes de mapping.
               </p>
             </div>
           </div>
@@ -809,7 +1072,7 @@ export default function ImportPage() {
               <div>
                 <p className="font-bold">Fichier volumineux ({totalRowsCount.toLocaleString('fr-FR')} lignes)</p>
                 <p className="text-[11px] text-amber-700 mt-0.5">
-                  Ce fichier dépasse {ROW_WARNING_THRESHOLD.toLocaleString('fr-FR')} lignes. Le traitement se fait par lots en arrière-plan et peut prendre plusieurs minutes — restez sur cette page jusqu'à la fin, la progression réelle sera affichée à l'étape suivante.
+                  Ce catalogue est volumineux. Il sera envoyé automatiquement par lots sécurisés sans limite de 300 lignes. Gardez simplement cet onglet ouvert jusqu’à la fin du traitement.
                 </p>
               </div>
             </div>
@@ -828,7 +1091,7 @@ export default function ImportPage() {
               onClick={runImport}
               className="px-6 py-2 bg-[#1b3a1e] hover:bg-[#c9a052] text-white rounded-lg text-xs font-semibold shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
             >
-              <Play className="w-3.5 h-3.5" /> Lancer l'importation
+              <Play className="w-3.5 h-3.5" /> Lancer l&apos;importation
             </button>
           </div>
         </div>
@@ -842,7 +1105,7 @@ export default function ImportPage() {
             {processingStatus === 'PENDING' ? 'Démarrage de l\'importation...' : 'Traitement en cours...'}
           </h3>
           <p className="text-xs text-[#6b5f4f]/80 max-w-sm mb-2 leading-relaxed">
-            Ne fermez pas cette fenêtre. Le traitement se poursuit par lots côté serveur — vous pouvez suivre l'avancement réel ci-dessous.
+            Ne fermez pas cette fenêtre. Le traitement se poursuit par lots côté serveur — vous pouvez suivre l&apos;avancement réel ci-dessous.
           </p>
           {totalRowsCount > 0 && (
             <p className="text-xs font-bold text-[#153f2b] mb-4 font-mono">
@@ -862,8 +1125,8 @@ export default function ImportPage() {
       {step === 5 && (
         <div className="bg-white border border-[#eadfca] rounded-2xl p-6 shadow-[0_4px_24px_rgba(21,63,43,0.02)] space-y-6">
           <div>
-            <h2 className="font-serif text-xl font-bold text-[#153f2b] border-b border-[#ede8de] pb-2">Rapport d'importation</h2>
-            <p className="text-xs text-[#6b5f4f]/80 mt-1">L'importation de votre catalogue est terminée. Voici le récapitulatif détaillé :</p>
+            <h2 className="font-serif text-xl font-bold text-[#153f2b] border-b border-[#ede8de] pb-2">Rapport d&apos;importation</h2>
+            <p className="text-xs text-[#6b5f4f]/80 mt-1">L&apos;importation de votre catalogue est terminée. Voici le récapitulatif détaillé :</p>
           </div>
 
           {/* Stats Boxes */}
@@ -942,12 +1205,12 @@ export default function ImportPage() {
       >
         <div className="space-y-4 text-xs text-left text-[#2a1f0e]">
           <p className="leading-relaxed">
-            Vous êtes sur le point d'annuler l'importation du fichier <strong className="text-[#153f2b]">"{selectedBatch?.filename}"</strong> effectuée le {selectedBatch && new Date(selectedBatch.createdAt).toLocaleString('fr-FR')}.
+            Vous êtes sur le point d&apos;annuler l&apos;importation du fichier hier <strong className="text-[#153f2b]">&quot;{selectedBatch?.filename}&quot;</strong> effectuée le {selectedBatch && new Date(selectedBatch.createdAt).toLocaleString('fr-FR')}.
           </p>
           
           <div className="p-3 bg-[#FBF6EC]/50 border border-[#c9a052]/20 rounded-xl space-y-1 bg-amber-50/20">
             <p>⚠️ <strong>{selectedBatch?.productsCreatedCount} produits créés</strong> par cet import seront supprimés.</p>
-            <p>💡 <strong>{selectedBatch?.productsUpdatedCount} produits mis à jour</strong> ne seront <strong>PAS</strong> touchés (ils existaient déjà avant l'import).</p>
+            <p>💡 <strong>{selectedBatch?.productsUpdatedCount} produits mis à jour</strong> ne seront <strong>PAS</strong> touchés (ils existaient déjà avant l&apos;import).</p>
           </div>
 
           <div className="space-y-3 pt-2">
@@ -1040,7 +1303,7 @@ export default function ImportPage() {
             </button>
             
             <h2 className="font-serif text-xl font-bold text-[#153f2b] mb-4 flex items-center gap-2">
-              <SettingsIcon className="text-[#c9a052] w-5 h-5" /> Paramètres d'Importation
+              <SettingsIcon className="text-[#c9a052] w-5 h-5" /> Paramètres d&apos;Importation
             </h2>
 
             <form onSubmit={saveSettings} className="space-y-4">
@@ -1090,7 +1353,6 @@ export default function ImportPage() {
                 >
                   <option value="xlsx">Fichier Excel (.xlsx)</option>
                   <option value="csv">Fichier CSV (.csv)</option>
-                  <option value="xls">Fichier Excel ancien (.xls)</option>
                 </select>
               </div>
 
@@ -1127,14 +1389,14 @@ export default function ImportPage() {
                 <Clock className="text-[#c9a052] w-6 h-6" strokeWidth={1.8} /> Historique des Modifications
               </h2>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
-                <p className="text-xs text-[#6b5f4f]/80 text-left">Visualisez l'historique complet des actions d'import, création, modifications et suppressions.</p>
+                <p className="text-xs text-[#6b5f4f]/80 text-left">Visualisez l&apos;historique complet des actions d&apos;import, création, modifications et suppressions.ions.</p>
                 <ClearHistoryButton endpoint="/api/admin/logs" onCleared={() => loadLogs(1)} />
               </div>
 
               {/* Scrollable logs list */}
               <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0">
                 {logs.length === 0 ? (
-                  <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l'historique.</div>
+                  <div className="py-20 text-center text-xs text-[#9b8f7a] italic">Aucun log enregistré dans l&apos;historique.</div>
                 ) : (
                   logs.map((log) => (
                     <div key={log.id} className="p-4 border border-[#eadfca] rounded-xl bg-[#faf8f5] space-y-2 hover:border-[#c9a052]/30 transition-colors text-left">
@@ -1156,7 +1418,7 @@ export default function ImportPage() {
 
                       {log.changes && (
                         <div className="text-[10px] bg-white border border-[#ede8de] rounded-lg p-2 font-mono text-[#6b5f4f] space-y-1">
-                          {Object.entries(JSON.parse(log.changes)).map(([field, delta]: any) => {
+                          {Object.entries(JSON.parse(log.changes) as Record<string, ChangeDelta>).map(([field, delta]) => {
                             if (delta.before !== undefined && delta.after !== undefined) {
                               return (
                                 <div key={field}>

@@ -53,3 +53,4 @@ dev.db-wal
 
 # local dev log scratch
 /.agents/devlog.txt
+.env*.local

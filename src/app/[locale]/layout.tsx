@@ -7,9 +7,8 @@ import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import BottomNav from '@/components/layout/BottomNav'
 import { Toaster } from 'sonner'
-import prisma from '@/lib/prisma'
 import MaintenanceView from '@/components/layout/MaintenanceView'
-import { contactConfig } from '@/config/contact'
+import { getCachedLayoutSettings } from '@/lib/layoutSettings'
 
 type Locale = 'fr' | 'ar' | 'en'
 
@@ -28,26 +27,9 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
   const messages = await getMessages()
   const dir = locale === 'ar' ? 'rtl' : 'ltr'
 
-  // Load maintenance and boutique settings
-  let maintenanceMode = false
-  let email = contactConfig.email
-  let whatsappUrl = contactConfig.socials.whatsapp
-
-  try {
-    const maintenanceSetting = await prisma.setting.findUnique({ where: { key: 'maintenanceMode' } })
-    maintenanceMode = maintenanceSetting?.value === 'true'
-
-    const boutiqueSetting = await prisma.setting.findUnique({ where: { key: 'boutique' } })
-    if (boutiqueSetting) {
-      const parsed = JSON.parse(boutiqueSetting.value)
-      email = parsed.email || email
-      if (parsed.phoneWhatsApp) {
-        whatsappUrl = `https://wa.me/${parsed.phoneWhatsApp.replace(/\+/g, '').replace(/\s+/g, '')}`
-      }
-    }
-  } catch (e) {
-    console.error('Error loading layout settings:', e)
-  }
+  // Cache quasi-static storefront settings so normal page navigation does not
+  // hit PostgreSQL on every request.
+  const { maintenanceMode, email, whatsappUrl } = await getCachedLayoutSettings()
 
   if (maintenanceMode) {
     return (
@@ -62,7 +44,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
   return (
     <>
       <NextIntlClientProvider messages={messages}>
-        <div className="min-h-screen flex flex-col bg-white" dir={dir}>
+        <div className="min-h-screen flex flex-col bg-white pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-0" dir={dir}>
           <StoreHydrator />
           <Header locale={locale} />
           <main className="flex-1">

@@ -7,6 +7,7 @@ import { useCartStore } from '@/store/cart'
 import { useShallow } from 'zustand/react/shallow'
 import { Home, LayoutGrid, ShoppingBag, Users, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { localizedPath } from '@/lib/localizedPath'
 
 interface BottomNavProps {
   locale: string
@@ -38,37 +39,37 @@ export default function BottomNav({ locale }: BottomNavProps) {
 
   const items = [
     {
-      href: `/${locale}`,
+      href: localizedPath(locale, '/'),
       label: t('home'),
       icon: Home,
     },
     {
-      href: `/${locale}/catalogue`,
+      href: localizedPath(locale, '/catalogue'),
       label: t('catalogue'),
       icon: LayoutGrid,
     },
     {
-      href: `/${locale}/panier`,
+      href: localizedPath(locale, '/panier'),
       label: t('cart'),
       icon: ShoppingBag,
       isCart: true,
     },
     {
-      href: `/${locale}/notre-histoire`,
+      href: localizedPath(locale, '/notre-histoire'),
       label: t('about'),
       icon: Users,
     },
     {
-      href: `/${locale}/contact`,
+      href: localizedPath(locale, '/contact'),
       label: t('contact'),
       icon: Mail,
     },
   ]
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#FBF6EC] border-t border-[#c9a052]/15 md:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#FBF6EC] border-t border-[#c9a052]/15 md:hidden shadow-[0_-8px_24px_rgba(21,63,43,0.05)]">
       <div 
-        className="relative h-16 flex items-center justify-around px-2 pb-[env(safe-area-inset-bottom,0px)]"
+        className="relative h-[68px] flex items-center justify-around px-1.5 pb-[env(safe-area-inset-bottom,0px)]"
         style={{ direction: 'ltr' }}
       >
         {items.map((item, index) => {
@@ -77,10 +78,10 @@ export default function BottomNav({ locale }: BottomNavProps) {
 
           if (item.isCart) {
             return (
-              <div key={index} className="relative w-16 h-full flex flex-col items-center justify-end pb-1.5">
+              <div key={index} className="relative w-14 h-full flex flex-col items-center justify-end pb-1.5">
                 <Link
                   href={item.href}
-                  className="absolute -top-5 w-14 h-14 bg-[#153f2b] text-[#FBF6EC] rounded-full flex items-center justify-center shadow-[0_4px_12px_rgba(21,63,43,0.25)] border-4 border-[#FBF6EC] hover:bg-[#c9a052] transition-all duration-300 z-50 cursor-pointer"
+                  className="absolute -top-4 w-13 h-13 bg-[#153f2b] text-[#FBF6EC] rounded-full flex items-center justify-center shadow-[0_4px_12px_rgba(21,63,43,0.20)] border-[3px] border-[#FBF6EC] hover:bg-[#c9a052] transition-colors duration-150 z-50 cursor-pointer"
                   aria-label={item.label}
                 >
                   <Icon className="w-5.5 h-5.5 text-[#FBF6EC]" strokeWidth={2} />
@@ -90,7 +91,7 @@ export default function BottomNav({ locale }: BottomNavProps) {
                     </span>
                   )}
                 </Link>
-                <span className="text-[9px] font-semibold text-[#153f2b]/70 tracking-wider">
+                <span className="text-[9px] font-semibold text-[#153f2b]/70 tracking-wide">
                   {item.label}
                 </span>
               </div>
@@ -102,7 +103,7 @@ export default function BottomNav({ locale }: BottomNavProps) {
               key={index}
               href={item.href}
               className={cn(
-                "flex flex-col items-center justify-center flex-1 h-full min-w-[44px] gap-1 transition-colors duration-200 cursor-pointer relative",
+                "flex flex-col items-center justify-center flex-1 h-full min-w-[42px] gap-1 transition-colors duration-150 cursor-pointer relative",
                 active ? "text-[#c9a052]" : "text-[#153f2b]/60 hover:text-[#153f2b]"
               )}
             >

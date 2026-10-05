@@ -10,7 +10,7 @@ export interface ExcelColumn {
 export interface ExcelSheet {
   name: string
   columns: ExcelColumn[]
-  rows: any[]
+  rows: Array<Record<string, string | number | boolean | Date | null | undefined>>
 }
 
 export async function exportToExcel({

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import ProductImage from '@/components/ui/ProductImage'
 import { resolveProductImage } from '@/lib/productImage'
@@ -10,6 +11,8 @@ import { useWishlistStore } from '@/store/wishlist'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
 import Container from '@/components/ui/Container'
+import { useHydrated } from '@/hooks/useHydrated'
+import { localizedPath } from '@/lib/localizedPath'
 
 interface Product {
   id: string
@@ -38,6 +41,7 @@ interface Product {
 }
 
 export default function WishlistClient({ locale }: { locale: string }) {
+  const router = useRouter()
   const t = useTranslations('wishlist')
   const tCommon = useTranslations('common')
   const tCat = useTranslations('catalogue')
@@ -47,14 +51,9 @@ export default function WishlistClient({ locale }: { locale: string }) {
   const removeWishlistItem = useWishlistStore((s) => s.removeItem)
   const cartAddItem = useCartStore((s) => s.addItem)
 
-  const [mounted, setMounted] = useState(false)
+  const mounted = useHydrated()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-
-  // Hydration safety
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   // Sync / Fetch full product details from database for wishlist item IDs
   useEffect(() => {
@@ -82,9 +81,9 @@ export default function WishlistClient({ locale }: { locale: string }) {
     }
 
     fetchWishlistProducts()
-  }, [mounted, wishlistItems.length])
+  }, [mounted, wishlistItems])
 
-  const handleRemoveFromWishlist = (productId: string, name: string) => {
+  const handleRemoveFromWishlist = (productId: string) => {
     removeWishlistItem(productId)
     setProducts((prev) => prev.filter((p) => p.id !== productId))
     toast.success(t('removedFromWishlistSuccess'), {
@@ -112,7 +111,7 @@ export default function WishlistClient({ locale }: { locale: string }) {
       icon: <ShoppingBag className="w-4 h-4 text-[#c9a052]" />,
       action: {
         label: t('viewCart') || 'Voir panier',
-        onClick: () => window.location.href = `/${locale}/panier`
+        onClick: () => router.push(localizedPath(locale, '/panier'))
       }
     })
   }
@@ -139,7 +138,7 @@ export default function WishlistClient({ locale }: { locale: string }) {
       icon: <ShoppingBag className="w-4 h-4 text-[#c9a052]" />,
       action: {
         label: t('viewCart') || 'Voir panier',
-        onClick: () => window.location.href = `/${locale}/panier`
+        onClick: () => router.push(localizedPath(locale, '/panier'))
       }
     })
   }
@@ -167,7 +166,7 @@ export default function WishlistClient({ locale }: { locale: string }) {
         <div className="mb-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 text-start">
           <div>
             <div className="flex items-center gap-2 text-xs text-[#153f2b]/60 mb-2 font-sans">
-              <Link href={`/${locale}`} className="hover:text-[#c9a052] transition-colors">{tCommon('back')}</Link>
+              <Link href={localizedPath(locale, '/')} className="hover:text-[#c9a052] transition-colors">{tCommon('back')}</Link>
               <span>&bull;</span>
               <span className="text-[#153f2b]/80 font-medium">{t('title')}</span>
             </div>
@@ -219,7 +218,7 @@ export default function WishlistClient({ locale }: { locale: string }) {
               {t('emptyDescription')}
             </p>
             <Link
-              href={`/${locale}/catalogue`}
+              href={localizedPath(locale, '/catalogue')}
               className="mt-8 px-8 py-3 bg-[#153f2b] hover:bg-[#c9a052] text-white text-sm font-semibold rounded-full shadow-xs hover:shadow-md transition-all duration-300 flex items-center gap-2 hover:-translate-y-0.5"
             >
               <span>{t('emptyCta')}</span>
@@ -230,13 +229,6 @@ export default function WishlistClient({ locale }: { locale: string }) {
           /* ══ Product Grid ══ */
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-5 w-full">
             {products.map((product) => {
-              // Parse images
-              let imageUrl = ''
-              try {
-                const imgs = JSON.parse(product.images)
-                if (imgs && imgs.length > 0) imageUrl = imgs[0]
-              } catch (e) {}
-
               // Localize details
               const localizedName = locale === 'ar' ? (product.nameAr || product.name) : locale === 'en' ? (product.nameEn || product.name) : product.name
               const categoryName = product.category 
@@ -261,7 +253,7 @@ export default function WishlistClient({ locale }: { locale: string }) {
                     {/* Remove Heart Toggle */}
                     <button
                       type="button"
-                      onClick={() => handleRemoveFromWishlist(product.id, localizedName)}
+                      onClick={() => handleRemoveFromWishlist(product.id)}
                       className="absolute top-2 right-2 z-10 w-11 h-11 rounded-full bg-white/95 backdrop-blur-xs flex items-center justify-center text-[#c9a052] border border-[#c9a052]/10 hover:bg-white shadow-2xs transition-colors cursor-pointer"
                       aria-label={tProduct('removeFromWishlist')}
                       title={tProduct('removeFromWishlist')}
@@ -270,7 +262,7 @@ export default function WishlistClient({ locale }: { locale: string }) {
                     </button>
 
                     {/* Image Link */}
-                    <Link href={`/${locale}/catalogue/${product.slug}`} className="relative w-full h-full p-3 flex items-center justify-center">
+                    <Link href={localizedPath(locale, `/catalogue/${product.slug}`)} className="relative w-full h-full p-3 flex items-center justify-center">
                       <ProductImage
                         src={product.images}
                         alt={localizedName}
@@ -290,7 +282,7 @@ export default function WishlistClient({ locale }: { locale: string }) {
                     )}
 
                     <Link 
-                      href={`/${locale}/catalogue/${product.slug}`}
+                      href={localizedPath(locale, `/catalogue/${product.slug}`)}
                       className="font-sans font-semibold text-sm sm:text-base text-[#153f2b] hover:text-[#c9a052] transition-colors leading-tight line-clamp-1 mt-1"
                     >
                       {localizedName}
@@ -317,7 +309,7 @@ export default function WishlistClient({ locale }: { locale: string }) {
                     </button>
 
                     <Link
-                      href={`/${locale}/catalogue/${product.slug}`}
+                      href={localizedPath(locale, `/catalogue/${product.slug}`)}
                       className="text-center text-xs text-[#153f2b]/60 underline hover:text-[#c9a052] transition-colors py-0.5 block font-sans font-medium"
                     >
                       {tCat('voirDetails')}

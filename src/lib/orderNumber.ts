@@ -1,31 +1,32 @@
 import type { Prisma } from '@prisma/client'
 import crypto from 'crypto'
 
-export async function generateOrderNumber(tx: Prisma.TransactionClient): Promise<string> {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+const RANDOM_LENGTH = 10
+const MAX_ATTEMPTS = 5
+
+function randomCode(length = RANDOM_LENGTH) {
   let code = ''
-  
-  // Generate 6 random alphanumeric characters
-  while (code.length < 6) {
-    const bytes = crypto.randomBytes(6)
-    for (let i = 0; i < bytes.length && code.length < 6; i++) {
-      const idx = bytes[i] % chars.length
-      code += chars[idx]
+  while (code.length < length) {
+    const bytes = crypto.randomBytes(length)
+    for (const byte of bytes) {
+      if (code.length >= length) break
+      code += ALPHANUMERIC[byte % ALPHANUMERIC.length]
     }
   }
-
-  const orderNumber = `PG-${code}`
-
-  // Check uniqueness in database to avoid collisions
-  const existing = await tx.order.findUnique({
-    where: { orderNumber },
-    select: { id: true }
-  })
-
-  if (existing) {
-    return generateOrderNumber(tx)
-  }
-
-  return orderNumber
+  return code
 }
 
+export async function generateOrderNumber(tx: Prisma.TransactionClient): Promise<string> {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const orderNumber = `PG-${randomCode()}`
+    const existing = await tx.order.findUnique({
+      where: { orderNumber },
+      select: { id: true },
+    })
+    if (!existing) return orderNumber
+  }
+
+  // Practically unreachable, but guarantees forward progress without recursion.
+  return `PG-${crypto.randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase()}`
+}

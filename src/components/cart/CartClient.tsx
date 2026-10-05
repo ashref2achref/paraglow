@@ -9,8 +9,11 @@ import { ShoppingBag, Trash2, Plus, Minus, ArrowRight, Leaf } from 'lucide-react
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
 import Container from '@/components/ui/Container'
+import { useHydrated } from '@/hooks/useHydrated'
 import { useSettingsStore } from '@/store/settings'
 import { TUNISIAN_GOVERNORATES } from '@/lib/governorates'
+import { trackEvent } from '@/lib/analytics'
+import { localizedPath } from '@/lib/localizedPath'
 
 type PromoState = {
   code: string
@@ -32,16 +35,16 @@ export default function CartClient({ locale }: { locale: string }) {
   const router = useRouter()
   const t = useTranslations('cart')
   const tCommon = useTranslations('common')
-  const tCat = useTranslations('catalogue')
 
   const cartItems = useCartStore((s) => s.items)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const removeItem = useCartStore((s) => s.removeItem)
   const clearCart = useCartStore((s) => s.clearCart)
   const settings = useSettingsStore((s) => s.settings)
+  const cartProductSignature = cartItems.map((item) => item.productId).join(',')
 
-  const [mounted, setMounted] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const mounted = useHydrated()
+  const [, setLoading] = useState(true)
 
   // Checkout states
   const [customerName, setCustomerName] = useState('')
@@ -65,16 +68,12 @@ export default function CartClient({ locale }: { locale: string }) {
   const [appliedPromo, setAppliedPromo] = useState<PromoState | null>(null)
   const [isValidatingPromo, setIsValidatingPromo] = useState(false)
 
-  // Hydration safety
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
   // Sync / Enrich Cart items with database prices & names
   useEffect(() => {
     if (!mounted) return
     const enrichCartData = async () => {
-      const productIds = cartItems.map((item) => item.productId).filter(Boolean)
+      const currentItems = useCartStore.getState().items
+      const productIds = currentItems.map((item) => item.productId).filter(Boolean)
       if (productIds.length === 0) {
         setLoading(false)
         return
@@ -86,14 +85,14 @@ export default function CartClient({ locale }: { locale: string }) {
         if (data && data.products) {
           const products = data.products as CartProductApi[]
           useCartStore.setState({
-            items: cartItems.map(item => {
+            items: currentItems.map(item => {
               const dbProd = products.find((p) => p.id === item.productId)
               if (dbProd) {
                 let image = item.image
                 try {
                   const imgs = JSON.parse(dbProd.images)
                   if (imgs && imgs.length > 0) image = imgs[0]
-                } catch (e) {}
+                } catch {}
                 // Use localized name if available
                 const name = locale === 'ar' ? (dbProd.nameAr || dbProd.name) : locale === 'en' ? (dbProd.nameEn || dbProd.name) : dbProd.name
                 return {
@@ -117,7 +116,7 @@ export default function CartClient({ locale }: { locale: string }) {
     }
 
     enrichCartData()
-  }, [mounted])
+  }, [mounted, cartProductSignature, locale])
 
   if (!mounted) {
     return (
@@ -129,8 +128,8 @@ export default function CartClient({ locale }: { locale: string }) {
 
   // Formatting helpers
   const formatTND = (price: number) => {
-    return locale === 'ar' 
-      ? `${price.toFixed(3)} د.ت` 
+    return locale === 'ar'
+      ? `${price.toFixed(3)} د.ت`
       : `${price.toFixed(3)} TND`
   }
 
@@ -166,7 +165,7 @@ export default function CartClient({ locale }: { locale: string }) {
     isEmailValid
 
   // Localized error parser
-  const getLocalizedError = (errStr: string, currentLocale: string) => {
+  const getLocalizedError = (errStr: string) => {
     if (errStr.includes('Stock insuffisant')) {
       return t('errors.insufficientStock')
     }
@@ -196,9 +195,8 @@ export default function CartClient({ locale }: { locale: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: promoCodeInput,
-          total: subtotal,
-          items: cartItems.map(it => ({ productId: it.productId, price: it.price, quantity: it.quantity })),
-          clientPhone: customerPhone
+          items: cartItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+          clientPhone: customerPhone,
         })
       })
       const data = await res.json()
@@ -238,6 +236,12 @@ export default function CartClient({ locale }: { locale: string }) {
     }
 
     const phoneDigits = customerPhone.trim().replace(/\s+/g, '')
+
+    trackEvent('begin_checkout', {
+      items: cartItems.reduce((sum, item) => sum + item.quantity, 0),
+      value: grandTotal,
+      has_promo: Boolean(appliedPromo),
+    })
 
     setSubmittingOrder(true)
     try {
@@ -281,13 +285,13 @@ export default function CartClient({ locale }: { locale: string }) {
       const order = data.order
 
       toast.success(t('orderSuccess'))
-      
+
       // Redirect to confirmation (cart will be cleared upon confirmation page mount)
-      router.push(`/${locale}/commande/confirmation?orderNumber=${order.orderNumber}&wilaya=${encodeURIComponent(customerWilaya)}`)
-    } catch (err: any) {
+      router.push(`${localizedPath(locale, '/commande/confirmation')}?orderNumber=${order.orderNumber}&wilaya=${encodeURIComponent(customerWilaya)}`)
+    } catch (err: unknown) {
       console.warn('[Checkout Error]', err)
-      const errMsg = err.message || t('errors.orderCreationFailed')
-      const localizedMsg = getLocalizedError(errMsg, locale)
+      const errMsg = err instanceof Error && err.message ? err.message : t('errors.orderCreationFailed')
+      const localizedMsg = getLocalizedError(errMsg)
       setServerError(localizedMsg)
       toast.error(localizedMsg)
     } finally {
@@ -309,11 +313,11 @@ export default function CartClient({ locale }: { locale: string }) {
   return (
     <main className="w-full bg-[#FBF6EC] py-12 min-h-screen text-[#153f2b]">
       <Container className="max-w-[1400px] px-6 lg:px-12">
-        
+
         {/* Page Header */}
         <div className="mb-10 text-start">
           <div className="flex items-center gap-2 text-xs text-[#153f2b]/60 mb-2 font-sans">
-            <Link href={`/${locale}`} className="hover:text-[#c9a052] transition-colors">{tCommon('back')}</Link>
+            <Link href={localizedPath(locale, '/')} className="hover:text-[#c9a052] transition-colors">{tCommon('back')}</Link>
             <span>&bull;</span>
             <span className="text-[#153f2b]/80 font-medium">{t('title')}</span>
           </div>
@@ -324,7 +328,7 @@ export default function CartClient({ locale }: { locale: string }) {
         </div>
 
         {cartItems.length === 0 ? (
-          /* ══ Empty State: discrete leaf illustration & CTA ══ */
+          /* â•â• Empty State: discrete leaf illustration & CTA â•â• */
           <div className="w-full py-20 flex flex-col items-center justify-center text-center bg-white border border-[#c9a052]/15 rounded-2xl p-8 sm:p-12 shadow-xs">
             <div className="w-20 h-20 rounded-full bg-[#FBF6EC] border border-[#c9a052]/20 flex items-center justify-center mb-6">
               <Leaf className="w-10 h-10 text-[#c9a052] animate-float" />
@@ -334,7 +338,7 @@ export default function CartClient({ locale }: { locale: string }) {
               {t('emptyDescription')}
             </p>
             <Link
-              href={`/${locale}/catalogue`}
+              href={localizedPath(locale, '/catalogue')}
               className="mt-8 px-8 py-3 bg-[#153f2b] hover:bg-[#c9a052] text-white text-sm font-semibold rounded-full shadow-xs hover:shadow-md transition-all duration-300 flex items-center gap-2 hover:-translate-y-0.5"
             >
               <span>{t('emptyCta')}</span>
@@ -342,12 +346,12 @@ export default function CartClient({ locale }: { locale: string }) {
             </Link>
           </div>
         ) : (
-          /* ══ 2-Column Layout ══ */
+          /* â•â• 2-Column Layout â•â• */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
-            
+
             {/* Left Column: Cart Items List */}
             <div className="lg:col-span-2 flex flex-col gap-5">
-              
+
               {/* Free Delivery Promo Progress Bar */}
               {isFreeDeliveryActive && (
                 <div className="w-full bg-white border border-[#c9a052]/15 rounded-2xl p-5 shadow-2xs font-sans">
@@ -370,8 +374,8 @@ export default function CartClient({ locale }: { locale: string }) {
                         <span className="text-[#c9a052]">{Math.round(progressPercent)}%</span>
                       </div>
                       <div className="w-full h-2 bg-[#FBF6EC] rounded-full overflow-hidden border border-[#c9a052]/10">
-                        <div 
-                          className="h-full bg-gradient-to-r from-[#c9a052] to-[#d6b456] rounded-full transition-all duration-500" 
+                        <div
+                          className="h-full bg-gradient-to-r from-[#c9a052] to-[#d6b456] rounded-full transition-all duration-500"
                           style={{ width: `${progressPercent}%` }}
                         />
                       </div>
@@ -383,12 +387,12 @@ export default function CartClient({ locale }: { locale: string }) {
               {/* Items Container */}
               <div className="bg-white border border-[#c9a052]/15 rounded-2xl divide-y divide-[#c9a052]/10 shadow-2xs overflow-hidden">
                 {cartItems.map((item) => {
-                  const productHref = item.slug ? `/${locale}/catalogue/${item.slug}` : `/${locale}/catalogue`
+                  const productHref = item.slug ? localizedPath(locale, `/catalogue/${item.slug}`) : localizedPath(locale, '/catalogue')
                   return (
                     <div key={item.productId} className="p-5 flex gap-4 sm:gap-6 items-center">
-                      
+
                       {/* Product Image */}
-                      <Link 
+                      <Link
                         href={productHref}
                         className="relative w-20 h-20 sm:w-24 sm:h-24 bg-[#FBF6EC]/40 border border-[#c9a052]/10 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center hover:opacity-90 transition-opacity"
                       >
@@ -403,7 +407,7 @@ export default function CartClient({ locale }: { locale: string }) {
 
                       {/* Detail Column */}
                       <div className="flex-1 flex flex-col min-w-0">
-                        <Link 
+                        <Link
                           href={productHref}
                           className="font-serif font-semibold text-base sm:text-lg text-[#153f2b] hover:text-[#c9a052] transition-colors leading-snug line-clamp-1"
                         >
@@ -414,7 +418,7 @@ export default function CartClient({ locale }: { locale: string }) {
                             Code: {item.code}
                           </span>
                         )}
-                        
+
                         {/* Price Mobiles */}
                         <div className="text-sm font-bold text-[#c9a052] mt-1 lg:hidden">
                           {formatTND(item.price)}
@@ -481,9 +485,9 @@ export default function CartClient({ locale }: { locale: string }) {
                 <h3 className="font-serif text-[#153f2b] text-base font-bold border-b border-[#c9a052]/15 pb-4 mb-4">
                   {t('deliveryInfoTitle')}
                 </h3>
-                
+
                 <form id="checkout-form" onSubmit={handleOrderSubmit} className="space-y-4 font-sans text-xs text-[#2a1f0e] text-left">
-                  
+
                   {/* Name field */}
                   <div>
                     <label className="block text-xs font-semibold text-[#153f2b]/80 mb-1">
@@ -618,19 +622,19 @@ export default function CartClient({ locale }: { locale: string }) {
 
             {/* Right Column: Sticky Cart Summary */}
             <div className="lg:col-span-1 lg:sticky lg:top-28 flex flex-col gap-6">
-              
+
               {/* Summary Card */}
               <div className="bg-white border border-[#c9a052]/15 rounded-2xl p-6 shadow-2xs font-sans text-start">
                 <h3 className="font-serif text-[#153f2b] text-lg font-bold border-b border-[#c9a052]/15 pb-4 mb-4">
                   {t('summary')}
                 </h3>
-                
+
                 <div className="flex flex-col gap-3.5 text-sm">
                   <div className="flex justify-between items-center text-[#153f2b]/70">
                     <span>{t('subtotal')}</span>
                     <span className="font-semibold text-[#153f2b]">{formatTND(subtotal)}</span>
                   </div>
-                  
+
                   <div className="flex justify-between items-center text-[#153f2b]/70 pb-3.5 border-b border-[#c9a052]/10">
                     <span>{t('delivery')}</span>
                     {deliveryFee === 0 ? (
@@ -714,6 +718,27 @@ export default function CartClient({ locale }: { locale: string }) {
 
             </div>
 
+          </div>
+        )}
+
+        {cartItems.length > 0 && (
+          <div className="fixed md:hidden z-40 inset-x-3 bottom-[76px] rounded-2xl border border-[#c9a052]/20 bg-white shadow-[0_14px_36px_rgba(21,63,43,.15)] p-2.5 flex items-center gap-3">
+            <div className="min-w-0 ps-1 flex-1">
+              <p className="text-[9px] uppercase tracking-wider text-[#153f2b]/45">{t('total')}</p>
+              <p className="text-sm font-bold text-[#c9a052]">{formatTND(grandTotal)}</p>
+            </div>
+            <button
+              type="submit"
+              form="checkout-form"
+              disabled={submittingOrder || !isFormValid}
+              className="h-11 px-5 rounded-xl bg-[#153f2b] disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-bold flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+            >
+              {submittingOrder ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span>{t('confirmOrderBtn')}</span>
+              )}
+            </button>
           </div>
         )}
 

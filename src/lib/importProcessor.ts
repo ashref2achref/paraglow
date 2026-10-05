@@ -1,16 +1,19 @@
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { createHash } from 'node:crypto'
 import { revalidateAllLocales } from './revalidate'
-import { downloadAndSaveProductImage, saveProductImageBuffer } from '@/lib/productImageStorage'
+import {
+  downloadAndSaveProductImage,
+  productImageStoragePaths,
+  removeUnreferencedProductImagePaths,
+  saveProductImageBuffer,
+} from '@/lib/productImageStorage'
 
-// SheetJS/xlsx has no true streaming reader for the .xlsx zip+XML format — the whole
-// sheet is parsed into an array of row objects in memory. That's cheap per row (a
-// product row is a few dozen scalar cells), so tens of thousands of rows is not a
-// memory problem in practice. The real risk this file addresses is TIME: the previous
-// implementation made 3+ sequential Prisma round-trips per row. Rather than pretend to
-// stream what the library can't stream, we document a practical hard cap instead.
+// Excel files are parsed in memory, then processed in bounded database chunks.
+// Keep each request small enough to finish reliably inside the Vercel function window,
+// including slow remote-image downloads. Larger catalogues should be split into batches.
 export const MAX_IMPORT_ROWS = 100_000
-export const IMPORT_ROW_WARNING_THRESHOLD = 20_000
+export const IMPORT_ROW_WARNING_THRESHOLD = 10_000
 
 const CHUNK_SIZE = 40
 const IMAGE_CONCURRENCY = 6
@@ -42,6 +45,12 @@ export interface ImportDbSettings {
   duplicateBehavior: string
   normaliseCategories: boolean
   defaultStatus: string
+}
+
+export interface ImportProcessControl {
+  initialize?: boolean
+  finalize?: boolean
+  rowOffset?: number
 }
 
 // An image embedded natively in the workbook, already matched to a data row index
@@ -87,6 +96,12 @@ function generateSlug(text: string): string {
     .replace(/\p{Diacritic}/gu, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)+/g, '')
+}
+
+function stableUniqueSlug(text: string, discriminator: string): string {
+  const base = generateSlug(text) || 'item'
+  const suffix = createHash('sha1').update(discriminator).digest('hex').slice(0, 8)
+  return `${base}-${suffix}`
 }
 
 function chunkArray<T>(items: T[], size: number): T[][] {
@@ -136,8 +151,12 @@ export async function processImportBatch(
   mapping: ImportMapping,
   options: ImportOptions,
   dbSettings: ImportDbSettings,
-  embeddedImagesByRow?: Map<number, Buffer>
+  embeddedImagesByRow?: Map<number, Buffer>,
+  control: ImportProcessControl = {}
 ): Promise<void> {
+  const initialize = control.initialize ?? true
+  const finalize = control.finalize ?? true
+  const rowOffset = Math.max(0, control.rowOffset ?? 0)
   const duplicateBehavior = options.duplicateBehavior || dbSettings.duplicateBehavior || 'update'
   const defaultIsActive = dbSettings.defaultStatus === 'active'
 
@@ -148,10 +167,12 @@ export async function processImportBatch(
   let errorCount = 0
 
   try {
-    await prisma.importBatch.update({
-      where: { id: batchId },
-      data: { status: 'PROCESSING', startedAt: new Date() },
-    })
+    if (initialize) {
+      await prisma.importBatch.update({
+        where: { id: batchId },
+        data: { status: 'PROCESSING', startedAt: new Date(), completedAt: null, errorMessage: null },
+      })
+    }
 
     // ---- Pass 1: resolve every distinct category/brand name once ----
     const categoryNames = new Set<string>()
@@ -172,14 +193,14 @@ export async function processImportBatch(
     const categoryIdByName = new Map<string, string>()
     for (const name of categoryNames) {
       let cat = await prisma.category.findFirst({ where: { name: { equals: name } } })
-      if (!cat) cat = await prisma.category.create({ data: { name, slug: generateSlug(name) } })
+      if (!cat) cat = await prisma.category.create({ data: { name, slug: stableUniqueSlug(name, `category:${name}`) } })
       categoryIdByName.set(name, cat.id)
     }
 
     const brandIdByName = new Map<string, string>()
     for (const name of brandNames) {
       let brand = await prisma.brand.findFirst({ where: { name: { equals: name } } })
-      if (!brand) brand = await prisma.brand.create({ data: { name, slug: generateSlug(name) } })
+      if (!brand) brand = await prisma.brand.create({ data: { name, slug: stableUniqueSlug(name, `brand:${name}`) } })
       brandIdByName.set(name, brand.id)
     }
 
@@ -187,6 +208,10 @@ export async function processImportBatch(
     const rowChunks = chunkArray(rows.map((row, idx) => ({ row, idx })), CHUNK_SIZE)
 
     for (const chunk of rowChunks) {
+      const beforeCreated = created
+      const beforeUpdated = updated
+      const beforeIgnored = ignored
+      const beforeErrorCount = errorCount
       const prepared: PreparedProduct[] = []
 
       for (const { row, idx } of chunk) {
@@ -202,7 +227,7 @@ export async function processImportBatch(
           let categoryId: string | null = null
           if (mapping.category && row[mapping.category]) {
             const raw = String(row[mapping.category])
-            const norm = dbSettings.normaliseCategories ? normaliseCategoryName(raw) : raw.trim()
+            const norm = dbSettings.normaliseCategories ? normaliseCategoryName(raw) : sanitizeImportName(raw)
             categoryId = norm ? categoryIdByName.get(norm) || null : null
           }
 
@@ -214,7 +239,8 @@ export async function processImportBatch(
 
           const purchasePriceHT = parseFloat(String(row[mapping.purchasePriceHT || ''])) || 0
           const margin = parseFloat(String(row[mapping.margin || ''])) || 0
-          const tva = parseFloat(String(row[mapping.tva || ''])) || 19
+          const parsedTva = Number.parseFloat(String(row[mapping.tva || '']))
+          const tva = Number.isFinite(parsedTva) ? parsedTva : 19
           const sellingPriceTTC = parseFloat(String(row[mapping.sellingPriceTTC || ''])) || 0
           const publicPriceRaw = mapping.publicPrice ? row[mapping.publicPrice] : null
           const publicPrice = publicPriceRaw ? parseFloat(String(publicPriceRaw)) : null
@@ -243,7 +269,7 @@ export async function processImportBatch(
             if (archValue !== '') isActive = false
           }
 
-          const slug = generateSlug(name) + '-' + code
+          const slug = stableUniqueSlug(name, `product:${code}`)
 
           const imageUrlRaw = mapping.imageUrl && row[mapping.imageUrl] ? String(row[mapping.imageUrl]).trim() : ''
 
@@ -271,15 +297,30 @@ export async function processImportBatch(
               supprimeLe: null,
             },
             imageUrlToDownload: imageUrlRaw && /^https?:\/\//i.test(imageUrlRaw) ? imageUrlRaw : null,
-            embeddedImageBuffer: embeddedImagesByRow?.get(idx) || null,
+            embeddedImageBuffer: embeddedImagesByRow?.get(rowOffset + idx) || null,
           })
-        } catch (err: any) {
+        } catch (err: unknown) {
           errorCount++
-          if (errors.length < MAX_STORED_ERRORS) errors.push(`Ligne ${idx + 1}: ${err.message || err}`)
+          if (errors.length < MAX_STORED_ERRORS) {
+            const message = err instanceof Error ? err.message : String(err)
+            errors.push(`Ligne ${rowOffset + idx + 1}: ${message}`)
+          }
         }
       }
 
-      if (prepared.length === 0) continue
+      if (prepared.length === 0) {
+        await prisma.importBatch.update({
+          where: { id: batchId },
+          data: {
+            processedRows: { increment: chunk.length },
+            productsCreatedCount: { increment: created - beforeCreated },
+            productsUpdatedCount: { increment: updated - beforeUpdated },
+            ignoredCount: { increment: ignored - beforeIgnored },
+            errorCount: { increment: errorCount - beforeErrorCount },
+          },
+        })
+        continue
+      }
 
       // Resolve images for this chunk with bounded concurrency — never sequential
       // on top of the row loop, so a slow/broken URL only stalls one of N slots.
@@ -293,34 +334,34 @@ export async function processImportBatch(
             const url = await downloadAndSaveProductImage(p.imageUrlToDownload)
             p.data.imageUrl = url
             p.data.images = JSON.stringify([url])
-          } else {
-            p.data.imageUrl = null
-            p.data.images = JSON.stringify([])
           }
-        } catch (err: any) {
-          // A failed image never blocks the product itself — it's just imported without one.
+        } catch (err: unknown) {
+          // A failed image never blocks the product itself. On updates, keeping
+          // these keys absent preserves the existing image instead of clearing it.
           errorCount++
           if (errors.length < MAX_STORED_ERRORS) {
-            errors.push(`Image du produit ${p.code}: ${err.message || err}`)
+            const message = err instanceof Error ? err.message : String(err)
+            errors.push(`Image du produit ${p.code}: ${message}`)
           }
-          p.data.imageUrl = null
-          p.data.images = JSON.stringify([])
+          delete p.data.imageUrl
+          delete p.data.images
         }
       })
 
       const codes = prepared.map((p) => p.code)
       const existingProducts = await prisma.product.findMany({
         where: { code: { in: codes } },
-        select: { id: true, code: true },
+        select: { id: true, code: true, images: true, imageUrl: true },
       })
       const existingCodeSet = new Set(existingProducts.map((p) => p.code))
+      const existingByCode = new Map(existingProducts.map((product) => [product.code, product]))
 
       const toCreate = prepared.filter((p) => !existingCodeSet.has(p.code))
       const toUpdate = prepared.filter((p) => existingCodeSet.has(p.code))
 
       if (toCreate.length > 0) {
-        // skipDuplicates is not supported on SQLite; not needed anyway since toCreate
-        // above is already filtered against the existence check for this chunk.
+        // toCreate is already filtered against the existence check for this chunk,
+        // so skipDuplicates is unnecessary here.
         await prisma.product.createMany({
           data: toCreate.map((p) => ({ ...p.data, code: p.code, importBatchId: batchId } as Prisma.ProductCreateManyInput)),
         })
@@ -329,10 +370,31 @@ export async function processImportBatch(
 
       if (toUpdate.length > 0) {
         if (duplicateBehavior === 'update') {
+          const replacedImagePaths: string[] = []
+          const updatedProductIds: string[] = []
+
+          for (const product of toUpdate) {
+            if (product.data.imageUrl !== undefined || product.data.images !== undefined) {
+              const existing = existingByCode.get(product.code)
+              if (existing) {
+                replacedImagePaths.push(...productImageStoragePaths(existing.images, existing.imageUrl))
+                updatedProductIds.push(existing.id)
+              }
+            }
+          }
+
           await prisma.$transaction(
             toUpdate.map((p) => prisma.product.update({ where: { code: p.code }, data: p.data as Prisma.ProductUpdateInput }))
           )
           updated += toUpdate.length
+
+          if (replacedImagePaths.length > 0) {
+            try {
+              await removeUnreferencedProductImagePaths(replacedImagePaths, updatedProductIds)
+            } catch (error) {
+              console.error('[Import] Old product image cleanup failed:', error)
+            }
+          }
         } else {
           ignored += toUpdate.length
         }
@@ -342,70 +404,99 @@ export async function processImportBatch(
         where: { id: batchId },
         data: {
           processedRows: { increment: chunk.length },
-          productsCreatedCount: created,
-          productsUpdatedCount: updated,
-          ignoredCount: ignored,
-          errorCount,
+          productsCreatedCount: { increment: created - beforeCreated },
+          productsUpdatedCount: { increment: updated - beforeUpdated },
+          ignoredCount: { increment: ignored - beforeIgnored },
+          errorCount: { increment: errorCount - beforeErrorCount },
         },
       })
 
-      // better-sqlite3 is synchronous under the hood: a long run of back-to-back
-      // awaited queries that all resolve near-instantly can starve the Node event
-      // loop's I/O phase, making the whole server (including the public site and
-      // this very polling endpoint) unresponsive for the duration of the import.
-      // Yielding via setImmediate after every chunk forces a real event-loop turn
-      // so pending HTTP requests get serviced between chunks instead of queueing
-      // behind the entire import. Verified empirically: without this yield, a
-      // concurrent request measured a 16s stall during a 15,000-row import; with
-      // it, concurrent requests stay in the 100-200ms range throughout.
+      // Yield between chunks so pending I/O can run during a long import.
       await new Promise((resolve) => setImmediate(resolve))
     }
 
-    await prisma.importBatch.update({
-      where: { id: batchId },
-      data: {
-        status: 'COMPLETED',
-        completedAt: new Date(),
-        productsCreatedCount: created,
-        productsUpdatedCount: updated,
-        ignoredCount: ignored,
-        errorCount,
-        errorsJson: JSON.stringify(errors),
-      },
-    })
+    if (errors.length > 0) {
+      const current = await prisma.importBatch.findUnique({
+        where: { id: batchId },
+        select: { errorsJson: true },
+      })
+      let existingErrors: string[] = []
+      try {
+        existingErrors = current?.errorsJson ? JSON.parse(current.errorsJson) : []
+      } catch {
+        existingErrors = []
+      }
+      const mergedErrors = [...existingErrors, ...errors].slice(0, MAX_STORED_ERRORS)
+      await prisma.importBatch.update({
+        where: { id: batchId },
+        data: { errorsJson: JSON.stringify(mergedErrors) },
+      })
+    }
 
-    await prisma.productLog.create({
-      data: {
-        action: 'IMPORT',
-        details: `Importation catalogue : ${created} créations, ${updated} mises à jour, ${ignored} ignorés, ${errorCount} erreurs.`,
-        changes: JSON.stringify({ errors, stats: { created, updated, ignored } }),
-      },
-    })
+    if (finalize) {
+      const finalBatch = await prisma.importBatch.update({
+        where: { id: batchId },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      })
 
-    try {
-      revalidateAllLocales('/produits')
-      revalidateAllLocales('/')
-    } catch { /* outside request context in some environments — safe to ignore */ }
-  } catch (err: any) {
+      let finalErrors: string[] = []
+      try {
+        finalErrors = finalBatch.errorsJson ? JSON.parse(finalBatch.errorsJson) : []
+      } catch {
+        finalErrors = []
+      }
+
+      await prisma.productLog.create({
+        data: {
+          action: 'IMPORT',
+          details: `Importation catalogue : ${finalBatch.productsCreatedCount} créations, ${finalBatch.productsUpdatedCount} mises à jour, ${finalBatch.ignoredCount} ignorés, ${finalBatch.errorCount} erreurs.`,
+          changes: JSON.stringify({
+            errors: finalErrors,
+            stats: {
+              created: finalBatch.productsCreatedCount,
+              updated: finalBatch.productsUpdatedCount,
+              ignored: finalBatch.ignoredCount,
+            },
+          }),
+        },
+      })
+
+      try {
+        revalidateAllLocales('/produits')
+        revalidateAllLocales('/')
+      } catch { /* outside request context in some environments — safe to ignore */ }
+    }
+  } catch (err: unknown) {
     // Never leave the batch orphaned mid-status: any uncaught failure gets a terminal,
     // explicit FAILED state with the real counts made so far and a clear reason.
     console.error('[Import processing error]', err)
     try {
+      const current = await prisma.importBatch.findUnique({
+        where: { id: batchId },
+        select: { errorsJson: true },
+      })
+      let existingErrors: string[] = []
+      try {
+        existingErrors = current?.errorsJson ? JSON.parse(current.errorsJson) : []
+      } catch {
+        existingErrors = []
+      }
+      const mergedErrors = [...existingErrors, ...errors].slice(0, MAX_STORED_ERRORS)
       await prisma.importBatch.update({
         where: { id: batchId },
         data: {
           status: 'FAILED',
           completedAt: new Date(),
-          productsCreatedCount: created,
-          productsUpdatedCount: updated,
-          ignoredCount: ignored,
-          errorCount,
-          errorsJson: JSON.stringify(errors),
-          errorMessage: err?.message || String(err),
+          errorsJson: JSON.stringify(mergedErrors),
+          errorMessage: err instanceof Error ? err.message : String(err),
         },
       })
     } catch (updateErr) {
       console.error('[Import processing] failed to persist FAILED status', updateErr)
     }
+    throw err
   }
 }
